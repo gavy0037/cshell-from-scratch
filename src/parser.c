@@ -14,7 +14,7 @@ int transition_table[5][8] = {
 int validate_syntax(Token *token_list){
 
     if(token_list == NULL){
-        return -1;
+        return 0;
     }
     Token *token_pointer = token_list;
 
@@ -25,8 +25,7 @@ int validate_syntax(Token *token_list){
         int next_state = transition_table[p_state][t];
 
         if(next_state == ERR){
-            printf("cshell: invalid syntax\n");
-            return -1;
+            return 0;
         }
 
         p_state = (ParserState)next_state;
@@ -34,8 +33,7 @@ int validate_syntax(Token *token_list){
     }
 
     if(transition_table[p_state][7] == ERR){
-        printf("cshell: invalid syntax\n");
-        return -1;
+        return 0;
     }
 
     return 1;

@@ -41,7 +41,6 @@ Token *tokenize(char *input_string){
             } else if(input_string[i] == '\\'){
                 i++;
                 if(input_string[i] == '\0'){
-                    printf("cshell: invalid syntax\n");
                     return NULL;
                 }
                 current_word[word_pointer] = input_string[i];
@@ -71,7 +70,6 @@ Token *tokenize(char *input_string){
             }else if (input_string[i] == '\\') {
                 i++; // Skip the '\'
                 if (input_string[i] == '\0') {
-                    printf("cshell: invalid syntax\n"); // Trailing backslash error
                     return NULL;
                 }
                 current_word[word_pointer++] = input_string[i];
@@ -99,7 +97,6 @@ Token *tokenize(char *input_string){
             if(input_string[i] == '\\'){
                 i++;
                 if(input_string[i] == '\0'){
-                    printf("cshell: invalid syntax\n");
                     return NULL;
                 }
                 current_word[word_pointer] = input_string[i];
@@ -116,8 +113,6 @@ Token *tokenize(char *input_string){
         }
     }
     if(state == IN_DQ || state == IN_SQ){
-        // give error
-        printf("cshell: invalid syntax\n");
         // free the list
         return NULL;
     }
