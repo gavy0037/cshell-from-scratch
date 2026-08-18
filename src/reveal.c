@@ -48,7 +48,7 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
 void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     Token *t = head->next;
     int is_recursive = 0 , show_all = 0;
-    if(t != NULL && t->type == WORD && t->text[0] == '-' && strlen(t->text) > 1){ // strlen > 1 is because in this case reveal - , the code will go in this block thinking that it has got no flags but it is actually to reveal the previous directory
+    while(t != NULL && t->type == WORD && t->text[0] == '-' && strlen(t->text) > 1){ // strlen > 1 is because in this case reveal - , the code will go in this block thinking that it has got no flags but it is actually to reveal the previous directory
         for(int i = 1 ; i < (int)strlen(t->text) ; i++){
             if(t->text[i] == 't'){
                 is_recursive = 1;
@@ -63,14 +63,14 @@ void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     }
     char path_to_inspect[4096];
     if(t == NULL){
-        strcpy(path_to_inspect, resolve_path("" , prev_dir , home_dir));
+        strcpy(path_to_inspect, resolve_path("" , prev_dir ,home_dir ,curr_dir));
         read_directory(path_to_inspect , show_all , is_recursive , "");
     }else{
         if(t->text[0] == '-' && strlen(prev_dir) == 0){
             printf("reveal: no such directory\n");
             return;
         }
-        strcpy(path_to_inspect , resolve_path(t->text ,prev_dir , home_dir));
+        strcpy(path_to_inspect , resolve_path(t->text ,prev_dir , home_dir ,curr_dir));
         t = t->next;
         if(t != NULL){
             printf("reveal: invalid syntax\n");

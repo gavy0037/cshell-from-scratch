@@ -3,7 +3,7 @@
 
 #include"../include/lexer.h"
 
-char *resolve_path(char *path , char *prev_dir , char *home_dir);
+char *resolve_path(char *path , char *prev_dir , char *home_dir , char *curr_dir);
 void hop(char *home_dir , char *prev_dir , char *curr_dir , Token *head);
 
 #endif

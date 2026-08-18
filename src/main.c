@@ -7,6 +7,7 @@
 #include "../include/prompt.h"
 #include "../include/hop.h"
 #include "../include/reveal.h"
+#include "../include/peek.h"
 
 // Helper to convert enum to string for printing
 const char* get_token_name(TokenType type) {
@@ -49,10 +50,9 @@ int main() {
             printf("\nExiting...\n");
             break;
         }
-
         Token *head = tokenize(input);
         Token *current = head;
-
+        getcwd(curr_dir , sizeof(curr_dir));
         // Print the token stream
         while (current != NULL) {
             if (current->type == WORD) {
@@ -73,6 +73,8 @@ int main() {
             hop(home_dir, prev_dir, curr_dir, head);
         }else if(head != NULL && head->type == WORD && strcmp(head->text , "reveal") == 0){
             reveal(home_dir , prev_dir , curr_dir , head);
+        }else if(head != NULL && head->type == WORD && strcmp(head->text , "peek") == 0){
+            peek(head , home_dir);
         }
         free_tokens(head);
     }
