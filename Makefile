@@ -4,19 +4,22 @@ INCLUDES = -I./include
 
 
 SRC=$(wildcard src/*.c)
-OBJ=$(SRC:.c=.o)
+OBJ=$(patsubst src/%.c, build/%.o, $(SRC))
 TARGET_FILE= shell.out
 
-all:$(TARGET_FILE)
+all: $(TARGET_FILE)
 
 $(TARGET_FILE) : $(OBJ)
 	$(CC) $(CFlags) -o $(TARGET_FILE) $^
 
-src/%.o: src/%.c
+build/%.o: src/%.c | build
 	$(CC) $(CFlags) $(INCLUDES) -c $< -o $@
+
+build:
+	mkdir -p build
 
 run: all
 	./shell.out
 
 clean:
-	rm -f src/*.o $(TARGET_FILE)
+	rm -rf build $(TARGET_FILE)

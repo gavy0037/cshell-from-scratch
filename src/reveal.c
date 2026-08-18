@@ -11,6 +11,11 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
     DIR *dir = opendir(path);
     struct dirent *entry;
     
+    if(dir == NULL){
+        perror("reveal");
+        return;
+    }
+
     while((entry = readdir(dir)) != NULL){
         if(entry->d_name[0] == '.' && !show_all){
             continue;
@@ -43,7 +48,7 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
 void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     Token *t = head->next;
     int is_recursive = 0 , show_all = 0;
-    if(t != NULL && t->type == WORD){
+    if(t != NULL && t->type == WORD && t->text[0] == '-' && strlen(t->text) > 1){ // strlen > 1 is because in this case reveal - , the code will go in this block thinking that it has got no flags but it is actually to reveal the previous directory
         for(int i = 1 ; i < (int)strlen(t->text) ; i++){
             if(t->text[i] == 't'){
                 is_recursive = 1;
@@ -54,8 +59,8 @@ void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
                 return;
             }
         }
+        t = t->next;
     }
-    if(t) t = t->next;
     char path_to_inspect[4096];
     if(t == NULL){
         strcpy(path_to_inspect, resolve_path("" , prev_dir , home_dir));
