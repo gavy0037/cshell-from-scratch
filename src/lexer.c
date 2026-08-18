@@ -2,19 +2,9 @@
 #include<stdlib.h>
 #include<string.h>
 #include<ctype.h>
+#include<stdio.h>
 
 void append_to_list(Token **head , Token **tail , TokenType type, char *word){
-    if (type == WORD && *tail != NULL && (*tail)->type == WORD) {
-        char *merged_text = malloc(strlen((*tail)->text) + strlen(word) + 1);
-
-        strcpy(merged_text, (*tail)->text);
-        strcat(merged_text, word);
-        free((*tail)->text);
-        (*tail)->text = merged_text;
-        
-        return;
-    }
-
     Token *new_node = (Token*)malloc(sizeof(Token));
     new_node->type = type;
     if(type == WORD){
@@ -36,7 +26,6 @@ void append_to_list(Token **head , Token **tail , TokenType type, char *word){
 Token *tokenize(char *input_string){
     State state = NORMAL;
     int i = 0 ;
-    int word_start = -1;
     char current_word[256];
     int word_pointer = 0 ;
     Token *head = NULL, *tail = NULL;
@@ -49,7 +38,16 @@ Token *tokenize(char *input_string){
                 append_to_list(&head, &tail , WORD , current_word);
                 word_pointer = 0;
                 state = NORMAL;
-            } else {
+            } else if(input_string[i] == '\\'){
+                i++;
+                if(input_string[i] == '\0'){
+                    printf("cshell: invalid syntax\n");
+                    return NULL;
+                }
+                current_word[word_pointer] = input_string[i];
+                i++;
+                word_pointer++;
+            }else {
                 current_word[word_pointer] = input_string[i];
                 i++;
                 word_pointer++;
@@ -70,6 +68,14 @@ Token *tokenize(char *input_string){
                 }else{
                     append_to_list(&head, &tail, OP_GT, NULL);
                 }
+            }else if (input_string[i] == '\\') {
+                i++; // Skip the '\'
+                if (input_string[i] == '\0') {
+                    printf("cshell: invalid syntax\n"); // Trailing backslash error
+                    return NULL;
+                }
+                current_word[word_pointer++] = input_string[i];
+                state = IN_WORD;
             }else if(input_string[i] == '\''){
                 state = IN_SQ;
             }else if(input_string[i] == '"'){
@@ -82,23 +88,26 @@ Token *tokenize(char *input_string){
             i++;
         }else if(state == IN_SQ){
             if(input_string[i] == '\''){
-                state = NORMAL;
+                state = IN_WORD;
                 i++;
-                current_word[word_pointer] = '\0';
-                append_to_list(&head, &tail , WORD,  current_word);
-                word_pointer = 0;
             }else{
                 current_word[word_pointer] = input_string[i];
                 i++;
                 word_pointer++;
             }
         }else if(state == IN_DQ){
-            if(input_string[i] == '"'){
-                state = NORMAL;
+            if(input_string[i] == '\\'){
                 i++;
-                current_word[word_pointer] = '\0';
-                append_to_list(&head, &tail , WORD,  current_word);
-                word_pointer = 0;
+                if(input_string[i] == '\0'){
+                    printf("cshell: invalid syntax\n");
+                    return NULL;
+                }
+                current_word[word_pointer] = input_string[i];
+                i++;
+                word_pointer++;
+            }else if(input_string[i] == '"'){
+                state = IN_WORD;
+                i++;
             }else{
                 current_word[word_pointer] = input_string[i];
                 i++;

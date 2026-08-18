@@ -34,20 +34,3 @@ void display_prompt(char *home_dir){
 
     printf("<%s@%s:%s> " , userName , hostName , display_dir);
 }
-
-int main(){
-    char home_dir[4096];
-    getcwd(home_dir , sizeof(home_dir));
-    char input[4096];
-    while(1){
-        display_prompt(home_dir);
-        
-        if(fgets(input , sizeof(input) , stdin) == NULL){
-            printf("\n");
-            break;
-        }
-        
-        printf("%s" , input);
-        chdir("..");
-    }
-}
