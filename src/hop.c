@@ -201,15 +201,14 @@ int fallback_hop(char *shell_home, char *target) {
 
     return success ? 0 : -1;
 }
+char resolved[4096];
 char *resolve_path(char *path , char *prev_dir , char *home_dir , char *curr_dir){
     if(strlen(path) == 0){
         return curr_dir;
     }else if(path[0] == '~'){
-        char temp[4096];
-        strcpy(temp , path);
-        strcpy(path , home_dir);
-        strcat(path , temp);
-        return path;
+        snprintf(resolved , sizeof(resolve_path) , "%s%s" , home_dir , path+1);//path+1 so that we skip the ~
+
+        return resolved;
     }else if(path[0] == '-' && path[1] == '\0'){
         return prev_dir;
     }else{

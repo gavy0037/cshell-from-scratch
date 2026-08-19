@@ -35,11 +35,20 @@ int main() {
             printf("\nExiting...\n");
             break;
         }
+
+        int is_empty = 1;
+        for(int i =0 ; input[i] != '\0' ; i++){
+            if(input[i] != ' ' && input[i] != '\t' && input[i] != '\n'){
+                is_empty = 0;
+                break;
+            }
+        }
+        if(is_empty) continue;
         Token *head = tokenize(input);
         getcwd(curr_dir , sizeof(curr_dir));
 
         if((!validate_syntax(head)) == 1){
-            printf("cshell:syntax error\n");
+            printf("cshell: invalid syntax\n");
             free_tokens(head);
             continue;
         }
