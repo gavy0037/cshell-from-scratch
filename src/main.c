@@ -8,6 +8,7 @@
 #include "../include/hop.h"
 #include "../include/reveal.h"
 #include "../include/peek.h"
+#include "../include/locate.h"
 
 
 // Helper to free the linked list to prevent memory leaks
@@ -52,6 +53,8 @@ int main() {
             reveal(home_dir , prev_dir , curr_dir , head);
         }else if(head != NULL && head->type == WORD && strcmp(head->text , "peek") == 0){
             peek(head , home_dir);
+        }else if(head != NULL && head->type == WORD && strcmp(head->text , "locate") == 0){
+            locate(head);
         }
         free_tokens(head);
     }
