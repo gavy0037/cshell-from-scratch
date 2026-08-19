@@ -107,6 +107,9 @@ Token *tokenize(char *input_string){
                 if(input_string[i] == '\0'){
                     return NULL;
                 }
+                if(input_string[i] != '"' && input_string[i] != '\\'){
+                    current_word[word_pointer++] = '\\';
+                }
                 current_word[word_pointer] = input_string[i];
                 i++;
                 word_pointer++;
