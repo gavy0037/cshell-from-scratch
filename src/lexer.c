@@ -34,10 +34,18 @@ Token *tokenize(char *input_string){
     while(input_string[i] != '\0'){
         if(state == IN_WORD){
             if(input_string[i] == ' ' || input_string[i] == '\t' || input_string[i] == '\n' || input_string[i] == '|' || input_string[i] == '&' || input_string[i] == ';' || input_string[i] == '<' || input_string[i] == '>' || input_string[i] == '\'' || input_string[i] == '"'){
-                current_word[word_pointer] = '\0';
-                append_to_list(&head, &tail , WORD , current_word);
-                word_pointer = 0;
-                state = NORMAL;
+                if(input_string[i] == '\''){
+                    state = IN_SQ;
+                    i++;
+                }else if(input_string[i] == '"'){
+                    state = IN_DQ;
+                    i++;
+                }else{
+                    current_word[word_pointer] = '\0';
+                    append_to_list(&head, &tail , WORD , current_word);
+                    word_pointer = 0;
+                    state = NORMAL;
+                }
             } else if(input_string[i] == '\\'){
                 i++;
                 if(input_string[i] == '\0'){
