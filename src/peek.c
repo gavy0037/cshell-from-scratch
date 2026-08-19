@@ -69,23 +69,23 @@ void read_stdin(int is_reverse , int is_line){
             }
         }
     }else{
-        is_empty = 1;
         int current_line = 1;
-        int is_start = 1;
-        for(int i = 0; i < read_capacity; i++){
-            if(is_line && is_start && isgraph(buffer[i])){ // BUG: If we have a line starting with spaces then i will not print it's line number
-                printf("%d ", current_line);
-                is_start = 0;
+        int i = 0;
+        while(i < read_capacity){
+            // find the end of this line and check for graph chars
+            int start = i;
+            int has_graph = 0;
+            while(i < read_capacity && buffer[i] != '\n'){
+                if(isgraph(buffer[i])) has_graph = 1;
+                i++;
             }
-            printf("%c", buffer[i]);
+            if(i < read_capacity) i++;
 
-            if(buffer[i] == '\n' && !is_empty){
-                current_line++;
-                is_empty = 1;
-                is_start = 1;
+            if(is_line && has_graph){
+                printf("%d ", current_line++);
             }
-            if(isgraph(buffer[i])){
-                is_empty = 0;
+            for(int k = start; k < i; k++){
+                printf("%c", buffer[k]);
             }
         }
     }
@@ -111,7 +111,6 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 
     int current_pos = lseek(fd , 0 ,SEEK_END);
 
-    char line_buffer[4096];
     if(is_reverse){
         int line_count = 0;
         int has_content = 0;
@@ -195,52 +194,46 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
             if(is_line && non_empty)
                 printf("%d ", current_line);
             for(int c = 0; c < leftover_len; c++)
-                putchar(leftover[c]);
-            putchar('\n');
+                printf("%c",leftover[c]);
+            printf("\n");
             free(leftover);
             leftover = NULL;
         }
     }else{
         int current_line = 1;
-        current_pos = lseek(fd , 0 , SEEK_SET);
+        lseek(fd, 0, SEEK_SET);
         int bytes_read = 0;
-        while((bytes_read = read(fd , buffer , CHUNK_SIZE)) > 0){
-            int bytes_printed = 0;
-            int i = 0 ,j = 0 ;
-            while(i < bytes_read){
-                int is_line_empty = 1;
-                while(i < bytes_read){
-                    line_buffer[j] = buffer[i];
-                    if(isgraph(buffer[i])){
-                        is_line_empty = 0;
-                    }
-                    if(buffer[i] == '\n') break;
-                    i++;
-                    j++;
-                }
-                if(is_line && !is_line_empty){
-                    printf("%d ",current_line);
-                }
-                int incremented = 0;
-                for(int k =0 ; k < j ; k++){
-                    printf("%c",line_buffer[k]);
-                    bytes_printed++;
-                    if(isgraph(line_buffer[k]) && !incremented){
-                        current_line++;
-                        incremented = 1;
-                    }
-                }
-                // Print the \n that caused the break
-                if(i < bytes_read && buffer[i] == '\n'){
-                    printf("\n");
-                    bytes_printed++;
-                }
-                j = 0 ;
-                i++;
-            }
 
-            current_pos+=bytes_printed;
-            lseek(fd , current_pos, SEEK_SET);
+        char line_buf[4096];
+        int line_len = 0;
+        int has_graph = 0;
+
+        while((bytes_read = read(fd, buffer, CHUNK_SIZE)) > 0){
+            for(int i = 0; i < bytes_read; i++){
+                if(isgraph(buffer[i])) has_graph = 1;
+
+                line_buf[line_len++] = buffer[i];
+
+                if(buffer[i] == '\n'){
+                    if(is_line && has_graph){
+                        printf("%d ", current_line++);
+                    }
+                    for(int k = 0; k < line_len; k++){
+                        printf("%c", line_buf[k]);
+                    }
+                    line_len = 0;
+                    has_graph = 0;
+                }
+            }
+        }
+        // handle last line if file doesn't end with '\n'
+        if(line_len > 0){
+            if(is_line && has_graph){
+                printf("%d ", current_line++);
+            }
+            for(int k = 0; k < line_len; k++){
+                printf("%c", line_buf[k]);
+            }
         }
         printf("\n");
     }

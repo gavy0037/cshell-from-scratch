@@ -5,7 +5,7 @@
 #include<stdlib.h>
 #include"../include/lexer.h"
 
-#define CHUNK_SIZE 2
+#define CHUNK_SIZE 4096
 
 void read_stdin(int is_reverse ,int is_line);
 void read_file(int is_reverse , int is_line , char *file_path , char *home_dir);
