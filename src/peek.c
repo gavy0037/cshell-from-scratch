@@ -113,78 +113,92 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 
     char line_buffer[4096];
     if(is_reverse){
-        int line_count = 1;
-        int is_empty = 0;// this is to see if a line is completely empty so that i do not count it in my line count
+        int line_count = 0;
+        int has_content = 0;
         while(current_pos > 0){
             int to_read = (current_pos >= CHUNK_SIZE ? CHUNK_SIZE : current_pos);
-            
-            current_pos-=to_read;
-            
-            lseek(fd , current_pos , SEEK_SET);
-            
-            read(fd , buffer , to_read);
-            
-            for(int i = 0 ; i < to_read ; i++){
-                if(buffer[i] == '\n' && !is_empty){
-                    line_count++;
-                    is_empty = 1;
-                }
+            current_pos -= to_read;
+            lseek(fd, current_pos, SEEK_SET);
+            read(fd, buffer, to_read);
+            for(int i = 0; i < to_read; i++){
                 if(isgraph(buffer[i])){
-                    is_empty = 0 ;
+                    has_content = 1;
+                }
+                if(buffer[i] == '\n'){
+                    if(has_content) line_count++;
+                    has_content = 0;
                 }
             }
         }
-        int current_line = line_count;
-        current_pos = lseek(fd, 0, SEEK_END);
+        if(has_content) line_count++; // last line without trailing \n
 
-        int last_partial_j = 4095;
-        int last_partial_is_line_empty = 1;
+        int file_size = lseek(fd, 0, SEEK_END);
+        current_pos = file_size;
+
+        if(current_pos > 0){
+            char last;
+            lseek(fd, current_pos - 1, SEEK_SET);
+            if(read(fd, &last, 1) == 1 && last == '\n'){ // to remove the last \n
+                current_pos--;
+            }
+        }
+
+        char *leftover = NULL;
+        int leftover_len = 0;
+        int current_line = line_count;
 
         while(current_pos > 0){
             int to_read = (current_pos >= CHUNK_SIZE ? CHUNK_SIZE : current_pos);
             current_pos -= to_read;
             lseek(fd, current_pos, SEEK_SET);
             read(fd, buffer, to_read);
-            current_pos+=to_read;
 
-            int bytes_printed = 0;
-            int i = to_read - 1, j = 4095;
+            int end = to_read; // right boundary within buffer
 
-            while(i >= 0){
-                int is_line_empty = 1;
-                while(i >= 0){
-                    if(isgraph(buffer[i])) is_line_empty = 0;
-                    line_buffer[j--] = buffer[i--];
-                    if(i >= 0 && buffer[i] == '\n') break;
-                }
+            for(int i = to_read - 1; i >= 0; i--){
+                if(buffer[i] == '\n'){
+                    // Line content: buffer[i+1 .. end-1] + leftover
+                    int non_empty = 0;
+                    for(int c = i + 1; c < end && !non_empty; c++)
+                        if(isgraph(buffer[c])) non_empty = 1;
+                    for(int c = 0; c < leftover_len && !non_empty; c++)
+                        if(isgraph(leftover[c])) non_empty = 1;
 
-                int is_partial = (i < 0);
+                    if(is_line && non_empty) printf("%d ", current_line);
+                    if(non_empty) current_line--;
 
-                if(!is_partial){
-                    if(is_line && !is_line_empty) printf("%d ", current_line);
-                    int dec = 0;
-                    for(int k = j + 1; k < 4096; k++){
-                        printf("%c", line_buffer[k]);
-                        bytes_printed++;
-                        if(isgraph(line_buffer[k]) && !dec){ current_line--; dec = 1; }
-                    }
-                    j = 4095;
-                } else {
-                    last_partial_j = j;
-                    last_partial_is_line_empty = is_line_empty;
+                    for(int c = i + 1; c < end; c++) printf("%c",buffer[c]);
+                    for(int c = 0; c < leftover_len; c++) printf("%c" ,leftover[c]);
+                    printf("\n");
+
+                    leftover = NULL;
+                    leftover_len = 0;
+                    end = i; // consumed the \n, move boundary left
                 }
             }
-
-
-            current_pos -= bytes_printed;
-            lseek(fd, current_pos, SEEK_SET);
+            if(end > 0){
+                char *new_lo = malloc(end + leftover_len);
+                memcpy(new_lo, buffer, end);
+                if(leftover_len > 0)
+                    memcpy(new_lo + end, leftover, leftover_len); // could have used strncpy but it terminates on seeing a /0 even if the string is not completely copied of the specified length
+                leftover = new_lo;
+                leftover_len = end + leftover_len;
+            }
         }
-
-        if(last_partial_j < 4095){
-            if(is_line && !last_partial_is_line_empty) printf("%d ", current_line);
-            for(int k = last_partial_j + 1; k < 4096; k++){
-                printf("%c", line_buffer[k]);
-            }
+        if(leftover_len > 0){
+            int non_empty = 0;
+            for(int c = 0; c < leftover_len; c++)
+                if(isgraph(leftover[c])){
+                    non_empty = 1; 
+                    break;
+                }
+            if(is_line && non_empty)
+                printf("%d ", current_line);
+            for(int c = 0; c < leftover_len; c++)
+                putchar(leftover[c]);
+            putchar('\n');
+            free(leftover);
+            leftover = NULL;
         }
     }else{
         int current_line = 1;

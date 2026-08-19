@@ -9,19 +9,6 @@
 #include "../include/reveal.h"
 #include "../include/peek.h"
 
-// Helper to convert enum to string for printing
-const char* get_token_name(TokenType type) {
-    switch (type) {
-        case OP_PIPE: return "OP_PIPE";
-        case OP_AMP:  return "OP_AMP";
-        case OP_SEMI: return "OP_SEMI";
-        case OP_LT:   return "OP_LT";
-        case OP_GT:   return "OP_GT";
-        case OP_GTGT: return "OP_GTGT";
-        case WORD:    return "WORD";
-        default:      return "UNKNOWN";
-    }
-}
 
 // Helper to free the linked list to prevent memory leaks
 void free_tokens(Token *head) {
@@ -51,18 +38,8 @@ int main() {
             break;
         }
         Token *head = tokenize(input);
-        Token *current = head;
         getcwd(curr_dir , sizeof(curr_dir));
-        // Print the token stream
-        while (current != NULL) {
-            if (current->type == WORD) {
-                printf("[%s: '%s'] -> ", get_token_name(current->type), current->text);
-            } else {
-                printf("[%s] -> ", get_token_name(current->type));
-            }
-            current = current->next;
-        }
-        printf("NULL\n");
+
         if((!validate_syntax(head)) == 1){
             printf("cshell:syntax error\n");
             free_tokens(head);
