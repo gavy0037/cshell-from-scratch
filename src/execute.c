@@ -1,0 +1,213 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<unistd.h>
+#include<dirent.h>
+#include<sys/stat.h>
+#include<sys/types.h>
+#include<sys/wait.h>
+#include"../include/lexer.h"
+#include "../include/hop.h"
+#include "../include/reveal.h"
+#include "../include/peek.h"
+#include "../include/locate.h"
+#include "../include/redirect.h"
+
+#include"../include/execute.h"
+#define ARGS_MAX 256
+
+
+
+void execute_command(Token *head , char *full_path){
+    // now head's text is full file path, just need to make a child process and execute it
+    Token *t = head;
+
+    while(t != NULL){
+        if(t->type == OP_LT){
+            handle_input_redirection(head);
+        }
+        if(t->type == OP_GT || t->type == OP_GTGT){
+            handle_output_redirection(head);
+        }
+        t = t->next;
+    }
+
+    char *args[ARGS_MAX];
+    t = head->next;
+    int i = 1 ;
+    args[0] = full_path;
+    while(t != NULL && t->type == WORD && i < ARGS_MAX){
+        args[i++] = t->text;
+        t = t->next;
+    }
+
+    if(i < ARGS_MAX) args[i] = NULL;
+    else args[ARGS_MAX-1] = NULL;
+
+    if(execv(full_path , args) == -1){
+        printf("cshell: command not found (%s)\n" , head->text);
+        exit(0);
+    }
+}
+
+void process_command_path(Token *head){
+    // first i need to think if this head command has already a path
+    int is_path = 0;
+    for(int i = 0 ; i < (int)strlen(head->text) ; i++){
+        if(head->text[i] == '/'){
+            is_path = 1;
+            break;
+        }
+    }
+
+    if(is_path){
+        struct stat st;
+        if(stat(head->text , &st) == 0 && S_ISREG(st.st_mode) && access(head->text , X_OK) == 0){
+            execute_command(head , head->text);
+        }else{
+            printf("cshell: command not found (%s)\n" , head->text);
+        }
+
+        return;
+    }
+    // now search locally
+    if(head->text[0] != '%'){
+        char curr_dir[4096];
+        getcwd(curr_dir , sizeof(curr_dir));
+        DIR *dir = opendir(curr_dir);
+        struct dirent *entry;
+        while((entry = readdir(dir)) != NULL){
+            if(strcmp(head->text , entry->d_name) == 0){
+                struct stat st;
+                char full_file_path[8192];
+                snprintf(full_file_path , 8192 , "%s/%s" , curr_dir , head->text);
+                if(stat(full_file_path , &st) == 0 && S_ISREG(st.st_mode) && access(full_file_path , X_OK) == 0){
+                    execute_command(head,  full_file_path);
+    
+                    return;
+                }
+            }
+        }
+        closedir(dir);
+    }
+
+    if(head->text[0] == '%'){
+        memmove(head->text , head->text+1 , strlen(head->text));
+    }
+    // search in path
+    char *path = getenv("PATH");
+    char *path_copy = strdup(path);
+
+    char *current_dir = strtok(path_copy , ":");
+    struct stat path_stat;
+    while(current_dir != NULL){
+        char full_path[8192];
+        snprintf(full_path , 8192 , "%s/%s" , current_dir , head->text);
+        if(stat(full_path , &path_stat) == 0 && S_ISREG(path_stat.st_mode) && access(full_path , X_OK) == 0){
+            execute_command(head , full_path);
+            return;
+        }
+        current_dir = strtok(NULL , ":");
+    }
+
+    printf("cshell: command not found (%s)\n" , head->text);
+}
+
+
+void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_dir){
+    Token *command_arr[ARGS_MAX];
+
+    Token *t = command_list , *prev = NULL;
+    int i = 0;
+    Token *st = t;
+    while(t != NULL){
+        if(t->type == OP_PIPE || t->type == OP_SEMI || t->type == OP_AMP){
+            command_arr[i] = st; 
+            i++;
+            prev->next = NULL;
+            st = t->next;
+            if(t->type == OP_SEMI || t->type == OP_AMP) break;
+        }
+
+        prev = t;
+        t = t->next;
+    }
+
+    if(st != NULL && i < ARGS_MAX){
+        command_arr[i++] = st;
+    }
+
+    int total_commands = i;
+    // now we process command by command
+    i = 0 ;
+    int child_process_count = 0;
+    int last_pipe_read = -1;
+    while(i < total_commands){
+        if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
+            hop(home_dir, prev_dir, curr_dir, command_arr[i]);
+            i++;
+            continue;
+        }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "cd") == 0){
+            char *target_dir = home_dir; // Default to home if no argument
+            if (command_arr[i]->next != NULL) {
+                target_dir = command_arr[i]->next->text;
+            }
+            if (chdir(target_dir) != 0) {
+                perror("cshell");
+            }
+            i++;
+            continue;
+        }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "exit") == 0){
+            printf("Exiting...\n");
+            i++;
+            exit(0);
+        }
+
+        int pipefd[2];
+        pipe(pipefd);
+        Token *command = command_arr[i];
+        __pid_t p = fork();
+        child_process_count++;
+        if(p == 0){
+            if(i > 0){
+                // connect this child's input to the previous pipe's output
+                dup2(last_pipe_read , STDIN_FILENO);
+            }
+            if(i+1 < total_commands){
+                // if not the last command connect it's output to next output 
+                dup2(pipefd[1] , STDOUT_FILENO);
+            }
+
+
+            // todo : close the unused file descriptors
+
+            if(command != NULL && command->type == WORD && strcmp(command->text , "reveal") == 0){
+                reveal(home_dir , prev_dir , curr_dir , command);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "peek") == 0){
+                peek(command , home_dir);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "locate") == 0){
+                locate(command);
+            }else{
+                // this is a different command , i have to check the current directory for this exec or the path for this directory
+                
+                process_command_path(command);
+            }
+            exit(0);
+        }else{
+            if (last_pipe_read != -1) {
+                close(last_pipe_read);
+            }
+
+            if(i+1 < total_commands){
+                close(pipefd[1]);
+
+                last_pipe_read = pipefd[0];
+            }
+        }
+        i++;
+    }
+
+    for(int j = 0 ; j < child_process_count ; j++){
+        wait(NULL);// wait for each command in pipeline so that i don't run the parent when the pipeing is not yet finisehd and also i have spawned every child so my pipeline is also fine.
+    }
+}
