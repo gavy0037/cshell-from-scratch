@@ -33,7 +33,7 @@ Token *tokenize(char *input_string){
 
     while(input_string[i] != '\0'){
         if(state == IN_WORD){
-            if(input_string[i] == ' ' || input_string[i] == '\t' || input_string[i] == '\n' || input_string[i] == '|' || input_string[i] == '&' || input_string[i] == ';' || input_string[i] == '<' || input_string[i] == '>' || input_string[i] == '\'' || input_string[i] == '"'){
+            if(input_string[i] == ' ' || input_string[i] == '\t' || input_string[i] == '\n' || input_string[i] == '\r' || input_string[i] == '|' || input_string[i] == '&' || input_string[i] == ';' || input_string[i] == '<' || input_string[i] == '>' || input_string[i] == '\'' || input_string[i] == '"'){
                 if(input_string[i] == '\''){
                     state = IN_SQ;
                     i++;
@@ -86,7 +86,7 @@ Token *tokenize(char *input_string){
                 state = IN_SQ;
             }else if(input_string[i] == '"'){
                 state = IN_DQ;
-            }else if(input_string[i] != ' ' && input_string[i] != '\t' && input_string[i] != '\n' && input_string[i] != '\\'){ // - is for flags
+            }else if(input_string[i] != ' ' && input_string[i] != '\t' && input_string[i] != '\n' && input_string[i] != '\r' && input_string[i] != '\\'){ // - is for flags
                 current_word[word_pointer] = input_string[i];
                 word_pointer++;
                 state = IN_WORD;
@@ -124,7 +124,15 @@ Token *tokenize(char *input_string){
         }
     }
     if(state == IN_DQ || state == IN_SQ){
-        // free the list
+        Token *current = head;
+        while (current != NULL) {
+            Token *next = current->next;
+            if (current->text != NULL) {
+                free(current->text);
+            }
+            free(current);
+            current = next;
+        }
         return NULL;
     }
     if(state == IN_WORD){

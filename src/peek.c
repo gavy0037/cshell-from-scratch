@@ -99,12 +99,12 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
     int fd = open(resolved_path , O_RDONLY);
 
     if(fd < 0){
-        perror("peek");
+        printf("peek: no such file or directory\n");
         return;
     }
 
     if(fstat(fd , &statbuf) == 0 && S_ISDIR(statbuf.st_mode)){
-        printf("peek: %s is a directory\n" , file_path);
+        printf("peek: is a directory\n");
         close(fd);
         return;
     }
@@ -178,8 +178,8 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
             if(end > 0){
                 char *new_lo = malloc(end + leftover_len);
                 memcpy(new_lo, buffer, end);
-                if(leftover_len > 0)
-                    memcpy(new_lo + end, leftover, leftover_len); // could have used strncpy but it terminates on seeing a /0 even if the string is not completely copied of the specified length
+                if(leftover_len > 0) memcpy(new_lo + end, leftover, leftover_len); // could have used strncpy but it terminates on seeing a /0 even if the string is not completely copied of the specified length
+                free(leftover);
                 leftover = new_lo;
                 leftover_len = end + leftover_len;
             }
@@ -235,7 +235,6 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
                 printf("%c", line_buf[k]);
             }
         }
-        printf("\n");
     }
     fflush(stdout);
     close(fd);

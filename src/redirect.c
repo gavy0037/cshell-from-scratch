@@ -29,7 +29,7 @@ void handle_input_redirection(Token *head){
 
     int pipefd[2];
     pipe(pipefd);
-    __pid_t pid = fork();
+    pid_t pid = fork();
     if(pid == 0){
         close(pipefd[0]);
         char *file_name;
@@ -83,7 +83,7 @@ void handle_output_redirection(Token *head){
     }
     
     pipe(pipefd);
-    __pid_t pid = fork();
+    pid_t pid = fork();
     if(pid == 0){
         close(pipefd[1]); // close write end
 

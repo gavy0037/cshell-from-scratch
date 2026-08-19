@@ -128,7 +128,10 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             i++;
             prev->next = NULL;
             st = t->next;
-            if(t->type == OP_SEMI || t->type == OP_AMP) break;
+            if(t->type == OP_SEMI || t->type == OP_AMP){
+                st = NULL;
+                break;
+            }
         }
 
         prev = t;
@@ -168,7 +171,7 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
         int pipefd[2];
         pipe(pipefd);
         Token *command = command_arr[i];
-        __pid_t p = fork();
+        pid_t p = fork();
         child_process_count++;
         if(p == 0){
             if(i > 0){
@@ -215,7 +218,14 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
         }
         i++;
     }
-
+    for(int j = 1 ; j < total_commands ; j++){
+        Token *t = command_arr[j];
+        while(t != NULL){
+            Token *temp = t;
+            t = t->next;
+            free(temp);
+        }
+    }
     for(int j = 0 ; j < child_process_count ; j++){
         wait(NULL);// wait for each command in pipeline so that i don't run the parent when the pipeing is not yet finisehd and also i have spawned every child so my pipeline is also fine.
     }

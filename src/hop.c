@@ -148,7 +148,7 @@ int compare_matches(const void *a, const void *b) {
 int fallback_hop(char *shell_home, char *target) {
     FrecencyNode *head = load_frecency_list(shell_home);
     if (!head) {
-        fprintf(stderr, "hop: No matching directory found\n");
+        printf("hop: no such directory\n");
         return -1;
     }
 
@@ -176,7 +176,7 @@ int fallback_hop(char *shell_home, char *target) {
     }
 
     if (match_count == 0) {
-        fprintf(stderr, "hop: No matching directory found\n");
+        printf("hop: no such directory\n");
         free(matches);
         free_frecency_list(head);
         return -1;
@@ -193,7 +193,7 @@ int fallback_hop(char *shell_home, char *target) {
     }
 
     if (!success) {
-        printf("hop: no matching directory found\n");
+        printf("hop: no such directory\n");
     }
 
     free(matches);
@@ -232,7 +232,7 @@ void hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
     
     if(t->text[0] == '-' && strlen(prev_dir) == 0){
         getcwd(prev_dir , 4096);
-        return;
+        t = t->next;
     }
     char buffer[4096];
     while(t != NULL){

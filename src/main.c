@@ -38,7 +38,7 @@ int main() {
 
         int is_empty = 1;
         for(int i =0 ; input[i] != '\0' ; i++){
-            if(input[i] != ' ' && input[i] != '\t' && input[i] != '\n'){
+            if(input[i] != ' ' && input[i] != '\t' && input[i] != '\n' && input[i] != '\r'){
                 is_empty = 0;
                 break;
             }
