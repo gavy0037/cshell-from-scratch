@@ -193,7 +193,7 @@ int fallback_hop(char *shell_home, char *target) {
     }
 
     if (!success) {
-        fprintf(stderr, "hop: No matching directory found\n");
+        printf("hop: no matching directory found\n");
     }
 
     free(matches);
@@ -201,12 +201,12 @@ int fallback_hop(char *shell_home, char *target) {
 
     return success ? 0 : -1;
 }
-char resolved[4096];
+char resolved[8192];
 char *resolve_path(char *path , char *prev_dir , char *home_dir , char *curr_dir){
     if(strlen(path) == 0){
         return curr_dir;
     }else if(path[0] == '~'){
-        snprintf(resolved , sizeof(resolve_path) , "%s%s" , home_dir , path+1);//path+1 so that we skip the ~
+        snprintf(resolved , sizeof(resolved) , "%s%s" , home_dir , path+1); // Fixed sizeof!
 
         return resolved;
     }else if(path[0] == '-' && path[1] == '\0'){
