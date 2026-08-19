@@ -21,13 +21,15 @@
 void execute_command(Token *head , char *full_path){
     // now head's text is full file path, just need to make a child process and execute it
     Token *t = head;
-
-    while(t != NULL){
-        if(t->type == OP_LT){
+    int input_handled = 0 , output_handled = 0;
+    while(t != NULL){   
+        if(t->type == OP_LT && !input_handled){
             handle_input_redirection(head);
+            input_handled = 1;
         }
-        if(t->type == OP_GT || t->type == OP_GTGT){
+        if((t->type == OP_GT || t->type == OP_GTGT) && !output_handled){
             handle_output_redirection(head);
+            output_handled = 1;
         }
         t = t->next;
     }
@@ -178,8 +180,12 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
                 dup2(pipefd[1] , STDOUT_FILENO);
             }
 
-
             // todo : close the unused file descriptors
+            close(pipefd[0]);
+            close(pipefd[1]);
+            if(last_pipe_read != -1){
+                close(last_pipe_read);
+            }
 
             if(command != NULL && command->type == WORD && strcmp(command->text , "reveal") == 0){
                 reveal(home_dir , prev_dir , curr_dir , command);
@@ -202,6 +208,9 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
                 close(pipefd[1]);
 
                 last_pipe_read = pipefd[0];
+            }else{
+                close(pipefd[1]);
+                close(pipefd[0]);
             }
         }
         i++;

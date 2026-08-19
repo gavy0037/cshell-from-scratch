@@ -9,29 +9,41 @@
 
 void handle_input_redirection(Token *head){
     // there would be a file name following a <
+    
+    Token *t = head;
+
+    while(t != NULL){
+        if(t->type == OP_LT){
+            
+            int fd = open(t->next->text , O_RDONLY);
+
+            if(fd == -1){
+                printf("cshell: no such file or directory\n");
+                close(fd);
+                exit(1);
+            }
+            close(fd);
+            t = t->next->next;
+        }else t = t->next;
+    }
 
     int pipefd[2];
     pipe(pipefd);
     __pid_t pid = fork();
     if(pid == 0){
         close(pipefd[0]);
-        Token *t = head;
         char *file_name;
+        t = head;
         while(t != NULL){
             if(t->type == OP_LT){
                 file_name = t->next->text;
-
                 int fd = open(file_name , O_RDONLY);
-                if(fd == -1){
-                    // give error that file does not exists
-                    t = t->next;
-                    continue;
-                }
                 int bytes_read;
                 char buffer[4096];
                 while((bytes_read = read(fd , buffer , CHUNK_SIZE)) > 0){
                     write(pipefd[1] , buffer, bytes_read);
                 }
+                close(fd);
                 t = t->next->next;
             }else t = t->next;
         }
@@ -47,25 +59,33 @@ void handle_input_redirection(Token *head){
 
 void handle_output_redirection(Token *head){
     Token *t = head;
-
+    int fds[256];
+    int idx = 0;
     int pipefd[2];
+    
+    
+    while(t != NULL){
+        if(t->type == OP_GT || t->type == OP_GTGT){
+            int flags = O_WRONLY | O_CREAT | ((t->type == OP_GT) ? O_TRUNC : O_APPEND);
+            
+            int fd = open(t->next->text , flags , 0644);
+
+            if(fd == -1){
+                printf("cshell: unable to create file for writing\n");
+                for(int i = 0 ; i < idx ; i++){
+                    close(fds[i]);
+                }
+                exit(1);
+            }
+            t = t->next->next;
+            fds[idx++] = fd;
+        }else t = t->next;
+    }
+    
     pipe(pipefd);
     __pid_t pid = fork();
-
     if(pid == 0){
         close(pipefd[1]); // close write end
-
-        int fds[256];
-        int idx = 0;
-        t = head;
-
-        while(t != NULL){
-            if(t->type == OP_GT || t->type == OP_GTGT){
-                int flags = O_WRONLY | O_CREAT | ((t->type == OP_GT) ? O_TRUNC : O_APPEND);
-                fds[idx++] = open(t->next->text, flags, 0644);
-            }
-            t = t->next;
-        }
 
         int bytes_read;
         char buffer[4096];
@@ -83,5 +103,9 @@ void handle_output_redirection(Token *head){
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[0]);
         close(pipefd[1]);
+
+        for(int i = 0 ; i < idx ; i++){
+            close(fds[i]);// because this fds are shared with both the parent and the child so i must free them in both o
+        }
     }
 }
