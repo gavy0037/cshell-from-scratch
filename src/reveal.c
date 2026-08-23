@@ -25,7 +25,10 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
 
     for (int i = 0; i < n; i++) {
         struct dirent *entry = namelist[i];
-        
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0){                                                                                                           
+            free(namelist[i]);
+            continue;
+        }
         if (!(entry->d_name[0] == '.' && !show_all)) {
             
             char full_entry_path[8192];
@@ -34,10 +37,20 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
             struct stat st;
             int is_dir = (stat(full_entry_path, &st) == 0 && S_ISDIR(st.st_mode));
             
-            if (is_dir) {
-                printf("%s%s/\n", base_path, entry->d_name);
+            int has_space = (strchr(entry->d_name, ' ') != NULL);
+            
+            if (is_dir && is_recursive) {
+                if (has_space) {
+                    printf("%s'%s'/\n", base_path, entry->d_name);
+                } else {
+                    printf("%s%s/\n", base_path, entry->d_name);
+                }
             } else {
-                printf("%s%s\n", base_path, entry->d_name);
+                if (has_space) {
+                    printf("%s'%s'\n", base_path, entry->d_name);
+                } else {
+                    printf("%s%s\n", base_path, entry->d_name);
+                }
             }
             
             if(is_dir && is_recursive){
@@ -64,34 +77,49 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
 void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     Token *t = head->next;
     int is_recursive = 0 , show_all = 0;
-    while(t != NULL && t->type == WORD && t->text[0] == '-' && strlen(t->text) > 1){ // strlen > 1 is because in this case reveal - , the code will go in this block thinking that it has got no flags but it is actually to reveal the previous directory
-        for(int i = 1 ; i < (int)strlen(t->text) ; i++){
-            if(t->text[i] == 't'){
-                is_recursive = 1;
-            }else if(t->text[i] == 'a'){
-                show_all = 1;
-            }else{
-                printf("reveal: invalid syntax\n");
-                return;
-            }
+    char *target_path = NULL;
+
+    while(t != NULL){
+        if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
+            if(t->next != NULL) t = t->next->next;
+            else t = t->next;
+            continue;
         }
-        t = t->next;
+        if(t->type == WORD){
+            if(t->text[0] == '-' && strlen(t->text) > 1 && target_path == NULL){
+                for(int i = 1 ; i < (int)strlen(t->text) ; i++){
+                    if(t->text[i] == 't'){
+                        is_recursive = 1;
+                    }else if(t->text[i] == 'a'){
+                        show_all = 1;
+                    }else{
+                        printf("reveal: invalid syntax\n");
+                        return;
+                    }
+                }
+            }else{
+                if(target_path != NULL){
+                    printf("reveal: invalid syntax\n");
+                    return;
+                }
+                target_path = t->text;
+            }
+            t = t->next;
+        }else{
+            break;
+        }
     }
+
     char path_to_inspect[4096];
-    if(t == NULL){
+    if(target_path == NULL){
         strcpy(path_to_inspect, resolve_path("" , prev_dir ,home_dir ,curr_dir));
         read_directory(path_to_inspect , show_all , is_recursive , "");
     }else{
-        if(t->text[0] == '-' && strlen(prev_dir) == 0){
+        if(target_path[0] == '-' && strlen(prev_dir) == 0){
             printf("reveal: no such directory\n");
             return;
         }
-        strcpy(path_to_inspect , resolve_path(t->text ,prev_dir , home_dir ,curr_dir));
-        t = t->next;
-        if(t != NULL){
-            printf("reveal: invalid syntax\n");
-            return;
-        }
+        strcpy(path_to_inspect , resolve_path(target_path ,prev_dir , home_dir ,curr_dir));
         read_directory(path_to_inspect , show_all , is_recursive , "");
     }
 }

@@ -243,30 +243,40 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 void peek(Token *head , char *home_dir){
     Token *t = head->next;
     int is_reverse = 0 , is_line = 0;
-    while(t != NULL && t->type == WORD && t->text[0] == '-' && strlen(t->text) > 1){
-        for(int i = 1 ; i < (int)strlen(t->text) ; i++){
-            if(t->text[i] == 'n'){
-                is_line = 1;
-            }else if(t->text[i] == 'r'){
-                is_reverse = 1;
-            }else{
-                printf("peek: invalid syntax\n");
-                return;
-            }
-        }
-        t = t->next;
-    }
-    if(t == NULL){
-        read_stdin(is_reverse , is_line);
-    }
+    int file_count = 0;
+
     while(t != NULL){
-        if(strcmp(t->text , "-") == 0){
-            // use stdin for input
-            read_stdin(is_reverse , is_line);
-        }else{
-            // this is standard file input
-            read_file(is_reverse , is_line , t->text , home_dir);
+        if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
+            if(t->next != NULL) t = t->next->next;
+            else t = t->next;
+            continue;
         }
-        t = t->next;
+        if(t->type == WORD){
+            if(t->text[0] == '-' && strlen(t->text) > 1 && file_count == 0){
+                for(int i = 1 ; i < (int)strlen(t->text) ; i++){
+                    if(t->text[i] == 'n'){
+                        is_line = 1;
+                    }else if(t->text[i] == 'r'){
+                        is_reverse = 1;
+                    }else{
+                        printf("peek: invalid syntax\n");
+                        return;
+                    }
+                }
+            }else{
+                file_count++;
+                if(strcmp(t->text , "-") == 0){
+                    read_stdin(is_reverse , is_line);
+                }else{
+                    read_file(is_reverse , is_line , t->text , home_dir);
+                }
+            }
+            t = t->next;
+        }else{
+            break;
+        }
+    }
+    if(file_count == 0){
+        read_stdin(is_reverse , is_line);
     }
 }

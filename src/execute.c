@@ -20,31 +20,27 @@
 
 void execute_command(Token *head , char *full_path){
     // now head's text is full file path, just need to make a child process and execute it
-    Token *t = head;
-    int input_handled = 0 , output_handled = 0;
-    while(t != NULL){   
-        if(t->type == OP_LT && !input_handled){
-            handle_input_redirection(head);
-            input_handled = 1;
-        }
-        if((t->type == OP_GT || t->type == OP_GTGT) && !output_handled){
-            handle_output_redirection(head);
-            output_handled = 1;
-        }
-        t = t->next;
-    }
+    Token *t;
 
     char *args[ARGS_MAX];
-    t = head->next;
-    int i = 1 ;
     args[0] = full_path;
-    while(t != NULL && t->type == WORD && i < ARGS_MAX){
-        args[i++] = t->text;
-        t = t->next;
+    int i = 1;
+    t = head->next;
+    while(t != NULL && i < ARGS_MAX - 1){
+        if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
+            if(t->next != NULL){
+                t = t->next->next;
+            }else{
+                t = t->next;
+            }
+        }else if(t->type == WORD){
+            args[i++] = t->text;
+            t = t->next;
+        }else{
+            break;
+        }
     }
-
-    if(i < ARGS_MAX) args[i] = NULL;
-    else args[ARGS_MAX-1] = NULL;
+    args[i] = NULL;
 
     if(execv(full_path , args) == -1){
         printf("cshell: command not found (%s)\n" , head->text);
@@ -84,8 +80,8 @@ void process_command_path(Token *head){
                 char full_file_path[8192];
                 snprintf(full_file_path , 8192 , "%s/%s" , curr_dir , head->text);
                 if(stat(full_file_path , &st) == 0 && S_ISREG(st.st_mode) && access(full_file_path , X_OK) == 0){
+                    closedir(dir);
                     execute_command(head,  full_file_path);
-    
                     return;
                 }
             }
@@ -106,12 +102,14 @@ void process_command_path(Token *head){
         char full_path[8192];
         snprintf(full_path , 8192 , "%s/%s" , current_dir , head->text);
         if(stat(full_path , &path_stat) == 0 && S_ISREG(path_stat.st_mode) && access(full_path , X_OK) == 0){
+            free(path_copy);
             execute_command(head , full_path);
             return;
         }
         current_dir = strtok(NULL , ":");
     }
 
+    free(path_copy);
     printf("cshell: command not found (%s)\n" , head->text);
 }
 
@@ -188,6 +186,20 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             close(pipefd[1]);
             if(last_pipe_read != -1){
                 close(last_pipe_read);
+            }
+
+            Token *rt = command;
+            int input_handled = 0 , output_handled = 0;
+            while(rt != NULL){   
+                if(rt->type == OP_LT && !input_handled){
+                    handle_input_redirection(command);
+                    input_handled = 1;
+                }
+                if((rt->type == OP_GT || rt->type == OP_GTGT) && !output_handled){
+                    handle_output_redirection(command);
+                    output_handled = 1;
+                }
+                rt = rt->next;
             }
 
             if(command != NULL && command->type == WORD && strcmp(command->text , "reveal") == 0){

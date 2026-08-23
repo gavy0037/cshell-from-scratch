@@ -4,6 +4,16 @@
 #include<ctype.h>
 #include<stdio.h>
 
+static void free_token_list(Token *head){
+    Token *current = head;
+    while(current != NULL){
+        Token *next = current->next;
+        if(current->text != NULL) free(current->text);
+        free(current);
+        current = next;
+    }
+}
+
 void append_to_list(Token **head , Token **tail , TokenType type, char *word){
     Token *new_node = (Token*)malloc(sizeof(Token));
     new_node->type = type;
@@ -17,7 +27,7 @@ void append_to_list(Token **head , Token **tail , TokenType type, char *word){
     if((*head) == NULL){
         *head = new_node;
         *tail = new_node;
-    } else {
+    }else{
         (*tail)->next = new_node;
         *tail = new_node;
     }
@@ -25,11 +35,10 @@ void append_to_list(Token **head , Token **tail , TokenType type, char *word){
 
 Token *tokenize(char *input_string){
     State state = NORMAL;
-    int i = 0 ;
+    int i = 0;
     char current_word[256];
-    int word_pointer = 0 ;
+    int word_pointer = 0;
     Token *head = NULL, *tail = NULL;
-
 
     while(input_string[i] != '\0'){
         if(state == IN_WORD){
@@ -46,21 +55,22 @@ Token *tokenize(char *input_string){
                     word_pointer = 0;
                     state = NORMAL;
                 }
-            } else if(input_string[i] == '\\'){
+            }else if(input_string[i] == '\\'){
                 i++;
-                if(input_string[i] == '\0'){
+                if(input_string[i] == '\0' || input_string[i] == '\n' || input_string[i] == '\r'){
+                    free_token_list(head);
                     return NULL;
                 }
                 current_word[word_pointer] = input_string[i];
                 i++;
                 word_pointer++;
-            }else {
+            }else{
                 current_word[word_pointer] = input_string[i];
                 i++;
                 word_pointer++;
             }
         }else if(state == NORMAL){
-            if (input_string[i] == '|') {
+            if(input_string[i] == '|'){
                 append_to_list(&head, &tail, OP_PIPE, NULL);
             }else if(input_string[i] == '&'){
                 append_to_list(&head, &tail, OP_AMP, NULL);
@@ -71,13 +81,14 @@ Token *tokenize(char *input_string){
             }else if(input_string[i] == '>'){
                 if(input_string[i + 1] == '>'){
                     append_to_list(&head, &tail, OP_GTGT, NULL);
-                    i++; // Skip the second '>' so the loop doesn't process it twice
+                    i++;
                 }else{
                     append_to_list(&head, &tail, OP_GT, NULL);
                 }
-            }else if (input_string[i] == '\\') {
-                i++; // Skip the '\'
-                if (input_string[i] == '\0') {
+            }else if(input_string[i] == '\\'){
+                i++;
+                if(input_string[i] == '\0' || input_string[i] == '\n' || input_string[i] == '\r'){
+                    free_token_list(head);
                     return NULL;
                 }
                 current_word[word_pointer++] = input_string[i];
@@ -86,7 +97,7 @@ Token *tokenize(char *input_string){
                 state = IN_SQ;
             }else if(input_string[i] == '"'){
                 state = IN_DQ;
-            }else if(input_string[i] != ' ' && input_string[i] != '\t' && input_string[i] != '\n' && input_string[i] != '\r' && input_string[i] != '\\'){ // - is for flags
+            }else if(input_string[i] != ' ' && input_string[i] != '\t' && input_string[i] != '\n' && input_string[i] != '\r' && input_string[i] != '\\'){
                 current_word[word_pointer] = input_string[i];
                 word_pointer++;
                 state = IN_WORD;
@@ -104,7 +115,8 @@ Token *tokenize(char *input_string){
         }else if(state == IN_DQ){
             if(input_string[i] == '\\'){
                 i++;
-                if(input_string[i] == '\0'){
+                if(input_string[i] == '\0' || input_string[i] == '\n' || input_string[i] == '\r'){
+                    free_token_list(head);
                     return NULL;
                 }
                 if(input_string[i] != '"' && input_string[i] != '\\'){
@@ -124,15 +136,7 @@ Token *tokenize(char *input_string){
         }
     }
     if(state == IN_DQ || state == IN_SQ){
-        Token *current = head;
-        while (current != NULL) {
-            Token *next = current->next;
-            if (current->text != NULL) {
-                free(current->text);
-            }
-            free(current);
-            current = next;
-        }
+        free_token_list(head);
         return NULL;
     }
     if(state == IN_WORD){

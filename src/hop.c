@@ -236,6 +236,10 @@ void hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
     }
     char buffer[4096];
     while(t != NULL){
+        if(strcmp(t->text, ".") == 0){
+            t = t->next;
+            continue;
+        }
         getcwd(buffer , 4096);
         strcpy(curr_dir, resolve_path(t->text , prev_dir , home_dir , curr_dir));
         
