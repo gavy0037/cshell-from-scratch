@@ -20,7 +20,7 @@ int read_directory(char *path , int show_all , int is_recursive , char *base_pat
     
     if(n < 0){
         printf("reveal: no such directory\n");
-        return -1;
+        return 0;
     }
 
     for (int i = 0; i < n; i++) {
