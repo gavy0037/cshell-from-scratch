@@ -162,6 +162,10 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     foreground_running = 1;
 
     int job_number_printed = 0;
+    sigset_t mask , prev_mask;
+    sigemptyset(&mask);
+    sigaddset(&mask , SIGCHLD);
+    sigprocmask(SIG_BLOCK , &mask , &prev_mask);
     while(i < num_commands){
         if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
             if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
@@ -192,14 +196,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         foreground_pids[child_process_count] = p;
         child_process_count++;
 
-        sigset_t mask , prev_mask;
-        if(is_background){
-            sigemptyset(&mask);
-            sigaddset(&mask , SIGCHLD);
-            sigprocmask(SIG_BLOCK , &mask , &prev_mask);
-        }
         if(p == 0){
-            if(is_background) sigprocmask(SIG_SETMASK , &prev_mask , NULL);
+            sigprocmask(SIG_SETMASK , &prev_mask , NULL);
             if(i > 0){
                 // connect this child's input to the previous pipe's output
                 dup2(last_pipe_read , STDIN_FILENO);
@@ -263,9 +261,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                     bg_job_count++;
                 }
                 
-                
                 fflush(stdout);
-                sigprocmask(SIG_SETMASK , &prev_mask , NULL);
             }
 
             if (last_pipe_read != -1) {
@@ -303,6 +299,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 }
             }
         }
+        
     }
     foreground_running = 0;
 
@@ -313,6 +310,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         }
     }
     fflush(stdout);
+    sigprocmask(SIG_SETMASK , &prev_mask , NULL);
     return failed ? -1 : 0;
 }
 
