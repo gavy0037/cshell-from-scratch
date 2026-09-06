@@ -29,7 +29,7 @@ int search_path_for_exe(char *file_name){
     return success;
 }
 
-void locate(Token *head){
+int locate(Token *head){
     char curr_dir[4096];
     getcwd(curr_dir ,sizeof(curr_dir));
     struct stat path_stat;
@@ -63,5 +63,7 @@ void locate(Token *head){
     }
     if(arg_count == 0){
         printf("locate: invalid syntax\n");
+        return -1;
     }
+    return 0;
 }

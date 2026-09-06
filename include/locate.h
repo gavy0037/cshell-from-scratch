@@ -4,7 +4,7 @@
 
 
 int search_path_for_exe(char *file_name);
-void locate(Token *head);
+int locate(Token *head);
 
 
 #endif

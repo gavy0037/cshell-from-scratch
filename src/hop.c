@@ -216,7 +216,7 @@ char *resolve_path(char *path , char *prev_dir , char *home_dir , char *curr_dir
     }
 }
 
-void hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
+int hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
     Token *t = head->next;
     char abs_path[4096];
 
@@ -227,7 +227,7 @@ void hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
                 update_frecency(home_dir, abs_path);
             }
         }
-        return;
+        return 0;
     }
     
     if(t->text[0] == '-' && strlen(prev_dir) == 0){
@@ -255,8 +255,9 @@ void hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
                 if (getcwd(abs_path, sizeof(abs_path))) {
                     update_frecency(home_dir, abs_path);
                 }
-            }
+            }else return -1;
         }
         t = t->next;
     }
+    return 0;
 }

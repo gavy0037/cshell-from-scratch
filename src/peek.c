@@ -92,7 +92,7 @@ void read_stdin(int is_reverse , int is_line){
     fflush(stdout);
 }
 
-void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
+int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
     char *resolved_path = resolve_path(file_path , "" , home_dir , "");
     char buffer[CHUNK_SIZE];// for reading in chunks
     struct stat statbuf;
@@ -100,13 +100,13 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 
     if(fd < 0){
         printf("peek: no such file or directory\n");
-        return;
+        return -1;
     }
 
     if(fstat(fd , &statbuf) == 0 && S_ISDIR(statbuf.st_mode)){
         printf("peek: is a directory\n");
         close(fd);
-        return;
+        return -1;
     }
 
     int current_pos = lseek(fd , 0 ,SEEK_END);
@@ -238,9 +238,11 @@ void read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
     }
     fflush(stdout);
     close(fd);
+
+    return 0;
 }
 
-void peek(Token *head , char *home_dir){
+int peek(Token *head , char *home_dir){
     Token *t = head->next;
     int is_reverse = 0 , is_line = 0;
     int file_count = 0;
@@ -260,7 +262,7 @@ void peek(Token *head , char *home_dir){
                         is_reverse = 1;
                     }else{
                         printf("peek: invalid syntax\n");
-                        return;
+                        return -1;
                     }
                 }
             }else{
@@ -279,4 +281,6 @@ void peek(Token *head , char *home_dir){
     if(file_count == 0){
         read_stdin(is_reverse , is_line);
     }
+
+    return 0;
 }

@@ -13,14 +13,14 @@ int ascii_sort(const struct dirent **a, const struct dirent **b) { // the standa
     return strcmp((*a)->d_name, (*b)->d_name);
 }
 
-void read_directory(char *path , int show_all , int is_recursive , char *base_path){
+int read_directory(char *path , int show_all , int is_recursive , char *base_path){
     struct dirent **namelist;
-    
+    int failed = 0 ;
     int n = scandir(path, &namelist, NULL, ascii_sort);
     
     if(n < 0){
         printf("reveal: no such directory\n");
-        return;
+        return -1;
     }
 
     for (int i = 0; i < n; i++) {
@@ -62,7 +62,9 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
                         snprintf(next_base, sizeof(next_base), "%s%s/", base_path, entry->d_name);
                     }
 
-                    read_directory(full_entry_path , show_all , is_recursive , next_base);
+                    if(read_directory(full_entry_path , show_all , is_recursive , next_base) != 0){
+                        failed = 1;
+                    }
                 }
             }
         }
@@ -71,10 +73,13 @@ void read_directory(char *path , int show_all , int is_recursive , char *base_pa
     }
     
     free(namelist); 
+
+
+    return failed ? -1 : 0;
 }
 
 
-void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
+int reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     Token *t = head->next;
     int is_recursive = 0 , show_all = 0;
     char *target_path = NULL;
@@ -94,13 +99,13 @@ void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
                         show_all = 1;
                     }else{
                         printf("reveal: invalid syntax\n");
-                        return;
+                        return -1;
                     }
                 }
             }else{
                 if(target_path != NULL){
                     printf("reveal: invalid syntax\n");
-                    return;
+                    return -1;
                 }
                 target_path = t->text;
             }
@@ -109,17 +114,22 @@ void reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
             break;
         }
     }
-
+    int failed = 0;
     char path_to_inspect[4096];
     if(target_path == NULL){
         strcpy(path_to_inspect, resolve_path("" , prev_dir ,home_dir ,curr_dir));
-        read_directory(path_to_inspect , show_all , is_recursive , "");
+        if(read_directory(path_to_inspect , show_all , is_recursive , "") != 0){
+            failed = 1;
+        }
     }else{
         if(target_path[0] == '-' && strlen(prev_dir) == 0){
             printf("reveal: no such directory\n");
-            return;
+            return 0;
         }
         strcpy(path_to_inspect , resolve_path(target_path ,prev_dir , home_dir ,curr_dir));
-        read_directory(path_to_inspect , show_all , is_recursive , "");
+        if(read_directory(path_to_inspect , show_all , is_recursive , "") != 0){
+            failed = 1;
+        }
     }
+    return failed ? -1 : 0;
 }

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include<string.h>
+#include <signal.h>
 #include "../include/lexer.h"
 #include "../include/parser.h"
 #include "../include/prompt.h"
@@ -25,6 +26,18 @@ char home_dir[4096] , prev_dir[4096] = "", curr_dir[4096];
 
 
 int main() {
+
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+
+    if(sigaction(SIGCHLD , &sa , NULL) == -1){
+        perror("sigaction");
+        exit(1);
+    }
+
+
     getcwd(home_dir , sizeof(home_dir));
     strcpy(curr_dir , home_dir);
     while (1) {

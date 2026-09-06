@@ -15,7 +15,7 @@ typedef struct {
 } FrecencyMatch;
 
 char *resolve_path(char *path , char *prev_dir , char *home_dir , char *curr_dir);
-void hop(char *home_dir , char *prev_dir , char *curr_dir , Token *head);
+int hop(char *home_dir , char *prev_dir , char *curr_dir , Token *head);
 void update_frecency(char *shell_home, char *abs_path);
 int fallback_hop(char *shell_home, char *target);
 
