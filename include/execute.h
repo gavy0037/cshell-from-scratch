@@ -33,7 +33,7 @@ typedef struct{
 } Background_job;
 
 
-int execute_pipe(Token *command_arr[] , int num_commands ,char *home_dir , char *prev_dir , char *curr_dir);
+int execute_pipe(Token *command_arr[] , int num_commands ,char *home_dir , char *prev_dir , char *curr_dir , int is_background, int job_number);
 
 void execute_command(Token *head , char *full_path);
 void process_command_path(Token *head);
