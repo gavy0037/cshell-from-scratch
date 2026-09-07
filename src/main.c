@@ -42,7 +42,6 @@ int main() {
     getcwd(home_dir , sizeof(home_dir));
     strcpy(curr_dir , home_dir);
     while (1) {
-        print_completed_jobs();
         display_prompt(home_dir);
         fflush(stdout);
         char input[4096];

@@ -22,13 +22,36 @@ JobTrack tracked_jobs[ARGS_MAX];
 int tracked_job_count;
 volatile sig_atomic_t foreground_running = 0;
 
-void print_job_completion(Process *job){
-    if(WIFEXITED(job->exit_status)){
-        printf("%s with pid %d exited normally\n" , job->command , job->pid);
-    }else if(WIFSIGNALED(job->exit_status)){
-        printf("%s with pid %d exited abnormally\n" , job->command , job->pid);
+void safe_print(const char *str) {
+    write(STDOUT_FILENO, str, strlen(str));
+}
+
+void safe_print_int(int num) {
+    char buf[32];
+    int i = 30;
+    buf[31] = '\0';
+    if (num == 0) {
+        safe_print("0");
+        return;
     }
-    fflush(stdout);
+    while (num > 0 && i >= 0) {
+        buf[i] = (num % 10) + '0';
+        num /= 10;
+        i--;
+    }
+    safe_print(&buf[i + 1]);
+}
+
+void print_job_completion(Process *job){
+    safe_print(job->command);
+    safe_print(" with pid ");
+    safe_print_int(job->pid);
+    
+    if(WIFEXITED(job->exit_status)){
+        safe_print(" exited normally\n");
+    }else if(WIFSIGNALED(job->exit_status)){
+        safe_print(" exited abnormally\n");
+    }
 }
 
 
@@ -84,6 +107,7 @@ void sigchld_handler(int sig){
         }
     }
 
+    print_completed_jobs();
     errno = saved_errno;
 }
 
@@ -346,7 +370,6 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     }
     foreground_running = 0;
 
-    print_completed_jobs();
     fflush(stdout);
     sigprocmask(SIG_SETMASK , &prev_mask , NULL);
     return failed ? -1 : 0;
