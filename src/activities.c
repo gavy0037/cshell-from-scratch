@@ -4,7 +4,6 @@
 #include "../include/execute.h"
 
 void show_activities() {
-    //printf("DEBUG: activities sees tracked_job_count = %d\n", tracked_job_count);
     for (int i = 0; i < tracked_job_count; i++) {
         // Find if this group has any active processes
         int has_active = 0;

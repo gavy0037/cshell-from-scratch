@@ -44,14 +44,38 @@ int main() {
 
     getcwd(home_dir , sizeof(home_dir));
     strcpy(curr_dir , home_dir);
+    int consecutive_eof = 0;
     while (1) {
         display_prompt(home_dir);
         fflush(stdout);
         char input[4096];
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            printf("\nExiting...\n");
-            break;
+            if (feof(stdin)) {
+                clearerr(stdin); // Clear EOF state so we can read again if we don't exit
+                
+                if (consecutive_eof) {
+                    kill_all_jobs();
+                    printf("\nExiting...\n");
+                    break;
+                }
+                
+                if (has_stopped_jobs()) {
+                    printf("\ncshell: there are stopped jobs\n");
+                    consecutive_eof = 1;
+                    continue;
+                }
+                
+                // No stopped jobs
+                kill_all_jobs();
+                printf("\nExiting...\n");
+                break;
+            } else {
+                clearerr(stdin);
+                continue;
+            }
         }
+        
+        consecutive_eof = 0;
 
         int is_empty = 1;
         for(int i =0 ; input[i] != '\0' ; i++){

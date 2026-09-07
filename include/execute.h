@@ -46,6 +46,9 @@ typedef struct {
 extern JobTrack tracked_jobs[ARGS_MAX];
 extern int tracked_job_count;
 
+int has_stopped_jobs();
+void kill_all_jobs();
+
 void print_completed_jobs();
 int execute_pipe(Token *command_arr[] , int num_commands ,char *home_dir , char *prev_dir , char *curr_dir , int is_background, int job_number);
 

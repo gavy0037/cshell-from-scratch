@@ -23,6 +23,24 @@ JobTrack tracked_jobs[ARGS_MAX];
 int tracked_job_count;
 volatile sig_atomic_t foreground_running = 0;
 
+int has_stopped_jobs() {
+    for (int i = 0; i < tracked_job_count; i++) {
+        for (int j = 0; j < tracked_jobs[i].procs_count; j++) {
+            if (tracked_jobs[i].procs[j].status == STOPPED) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+void kill_all_jobs() {
+    for (int i = 0; i < tracked_job_count; i++) {
+        kill(-tracked_jobs[i].pgid, SIGHUP);
+        kill(-tracked_jobs[i].pgid, SIGCONT);
+    }
+}
+
 void safe_print(const char *str) {
     write(STDOUT_FILENO, str, strlen(str));
 }
@@ -257,6 +275,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "exit") == 0){
             printf("Exiting...\n");
             i++;
+            kill_all_jobs();
             exit(0);
         }
 
