@@ -55,15 +55,26 @@ void print_job_completion(Process *job){
     }
 }
 
+void print_job_stopped_or_running(JobTrack *job , int is_stopped){
+    printf("[%d] + %s   " , job->job_id , (is_stopped ? "Stopped" : "Running"));
+
+    for(int i = 0 ; i < job->procs_count ; i++){
+        printf("%s ", job->procs[i].command);
+    }
+    printf("\n");
+}
 
 void print_completed_jobs(){
     for(int i = 0 ; i < tracked_job_count ; i++){
-        // if(tracked_jobs[i].is_background){
+        if(tracked_jobs[i].is_background){
             int all_completed = 1;
         
             for(int j = 0 ; j < tracked_jobs[i].procs_count ; j++){
                 if(tracked_jobs[i].procs[j].status == COMPLETED_BUT_NOT_REPORTED){
-                    print_job_completion(&(tracked_jobs[i].procs[j]));
+                    // Only print completion message for the FIRST process in the pipeline (index 0)
+                    if(j == 0) {
+                        print_job_completion(&(tracked_jobs[i].procs[j]));
+                    }
                     tracked_jobs[i].procs[j].status = COMPLETED;
                 }
                 // If any process is NOT completed, the job as a whole isn't done yet
@@ -80,7 +91,7 @@ void print_completed_jobs(){
                 tracked_job_count--;
                 i--; // adjust index after shift
             }
-        //}
+        }
     }
 }
 
@@ -210,6 +221,8 @@ void process_command_path(Token *head){
     exit(-1);
 }
 
+int job_counter = 1;
+
 int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *prev_dir , char *curr_dir, int is_background , int job_number){
     int i = 0;
     int failed = 0;
@@ -252,14 +265,13 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         Token *command = command_arr[i];
         pid_t p = fork();
 
-        signal(SIGINT , SIG_DFL);
-        signal(SIGTSTP , SIG_DFL);
-        signal(SIGTTOU , SIG_DFL);
-
         foreground_pids[child_process_count] = p;
         child_process_count++;
         
         if(p == 0){
+            signal(SIGINT , SIG_DFL);
+            signal(SIGTSTP , SIG_DFL);
+            signal(SIGTTOU , SIG_DFL);
 
             if(i == 0){
                 setpgid(0 ,0);
@@ -323,18 +335,17 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             if(i > 0) setpgid(p , pgid);
             else pgid = p;
 
-            if(is_background){
-                if(!job_number_printed){
-                    printf("[%d] %d\n" , job_number , p);
-                    job_number_printed  = 1;
-                    tracked_jobs[tracked_job_count].pgid = pgid;
-                    tracked_jobs[tracked_job_count].job_id = job_number;
-                }
-                tracked_jobs[tracked_job_count].procs[i].pid=p;
-                strcpy(tracked_jobs[tracked_job_count].procs[i].command , command_arr[i]->text);
-                tracked_jobs[tracked_job_count].procs[i].status=RUNNING;
-                fflush(stdout);
+            if(!job_number_printed && is_background){
+                printf("[%d] %d\n" , job_number , p);
+                job_number_printed  = 1;
             }
+            tracked_jobs[tracked_job_count].is_background = is_background;
+            tracked_jobs[tracked_job_count].pgid = pgid;
+            tracked_jobs[tracked_job_count].job_id = job_number;
+            tracked_jobs[tracked_job_count].procs[i].pid=p;
+            strcpy(tracked_jobs[tracked_job_count].procs[i].command , command_arr[i]->text);
+            tracked_jobs[tracked_job_count].procs[i].status=RUNNING;
+            fflush(stdout);
             
             if (last_pipe_read != -1) {
                 close(last_pipe_read);
@@ -351,10 +362,12 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         }
         i++;
     }
-    tracked_jobs[tracked_job_count].procs_count = i;
-    if (is_background) {
-        //printf("DEBUG: adding job %d, tracked_job_count now %d\n", tracked_jobs[tracked_job_count].job_id, tracked_job_count + 1);
+    if(child_process_count > 0){
+        tracked_jobs[tracked_job_count].procs_count = i;
         tracked_job_count++;
+        if(!is_background){
+            tcsetpgrp(STDIN_FILENO , pgid);
+        }
     }
     for(int j = 1 ; j < num_commands ; j++){
         Token *t = command_arr[j];
@@ -365,28 +378,48 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         }
     }
     int status;
-    failed =0;
-    if(!is_background){
+    failed = 0;
+    if(!is_background && child_process_count > 0){
+        int stopped = 0;
         for(int j = 0 ; j < child_process_count ; j++){
-            waitpid(foreground_pids[j] , &status , 0);// wait for each command in pipeline so that i don't run the parent when the pipeing is not yet finisehd and also i have spawned every child so my pipeline is also fine.
+            waitpid(foreground_pids[j] , &status , WUNTRACED);
             if(WIFEXITED(status)){
                 int exit_code = WEXITSTATUS(status);
                 if(exit_code != 0){
                     failed = 1;
                 }
+            }else if(WIFSTOPPED(status)){
+                stopped = 1;
+                tracked_jobs[tracked_job_count-1].job_id = job_counter++;
+                tracked_jobs[tracked_job_count-1].is_background = 1;
+                for(int k = 0; k < tracked_jobs[tracked_job_count-1].procs_count; k++){
+                    tracked_jobs[tracked_job_count-1].procs[k].status = STOPPED;
+                }
+                print_job_stopped_or_running(&(tracked_jobs[tracked_job_count-1]) , 1);
+                break;
+            }else if(WIFSIGNALED(status)){
+                int sig = WTERMSIG(status);
+                if(sig == SIGINT){
+                    failed = 1;
+                    break;
+                }
             }
         }
-        
+        if(!stopped){
+            tracked_job_count--;
+        }
     }
     foreground_running = 0;
-
+    if(!is_background && child_process_count > 0){
+        tcsetpgrp(STDIN_FILENO , getpgid(0));
+    }
     fflush(stdout);
     sigprocmask(SIG_SETMASK , &prev_mask , NULL);
     return failed ? -1 : 0;
 }
 
 
-int job_counter = 1 ;
+
 
 void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_dir){
     job* job_arr[ARGS_MAX];
