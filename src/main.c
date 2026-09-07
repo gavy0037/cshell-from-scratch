@@ -25,6 +25,9 @@ void free_tokens(Token *head) {
 
 char home_dir[4096] , prev_dir[4096] = "", curr_dir[4096];
 
+void dummy_sigalrm_handler(int sig) {
+    // Dummy handler to interrupt waitpid without restarting it
+}
 
 int main() {
 
@@ -37,6 +40,12 @@ int main() {
         perror("sigaction");
         exit(1);
     }
+
+    struct sigaction sa_alrm;
+    sa_alrm.sa_handler = dummy_sigalrm_handler;
+    sigemptyset(&sa_alrm.sa_mask);
+    sa_alrm.sa_flags = 0; // NO SA_RESTART so that we do not restart waitpid in resuming fg process , if we did , then that would consume the interuppt and we will be stuck there forever
+    sigaction(SIGALRM, &sa_alrm, NULL);
 
     signal(SIGINT , SIG_IGN);
     signal(SIGTSTP , SIG_IGN);

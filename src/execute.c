@@ -16,7 +16,8 @@
 #include "../include/locate.h"
 #include "../include/activities.h"
 #include "../include/redirect.h"
-
+#include "../include/resume.h"
+#include "../include/ping.h"
 #include"../include/execute.h"
 
 JobTrack tracked_jobs[ARGS_MAX];
@@ -74,12 +75,7 @@ void print_job_completion(Process *job){
 }
 
 void print_job_stopped_or_running(JobTrack *job , int is_stopped){
-    printf("[%d] + %s   " , job->job_id , (is_stopped ? "Stopped" : "Running"));
-
-    for(int i = 0 ; i < job->procs_count ; i++){
-        printf("%s ", job->procs[i].command);
-    }
-    printf("\n");
+    printf("[%d] + %s   %s\n" , job->job_id , (is_stopped ? "Stopped" : "Running") , job->full_job_command);
 }
 
 void print_completed_jobs(){
@@ -278,6 +274,16 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             kill_all_jobs();
             exit(0);
         }
+        else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "resume") == 0){
+            resume_command(command_arr[i]);
+            i++;
+            continue;
+        }
+        else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "ping") == 0){
+            ping_command(command_arr[i]);
+            i++;
+            continue;
+        }
 
         int pipefd[2];
         pipe(pipefd);
@@ -360,7 +366,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             }
             tracked_jobs[tracked_job_count].is_background = is_background;
             tracked_jobs[tracked_job_count].pgid = pgid;
-            tracked_jobs[tracked_job_count].job_id = job_number;
+            tracked_jobs[tracked_job_count].job_id = job_number;// this job number is just temprory, it's always zero , but when this foregroud process is stopped , it is given a real job number
             tracked_jobs[tracked_job_count].procs[i].pid=p;
             strcpy(tracked_jobs[tracked_job_count].procs[i].command , command_arr[i]->text);
             tracked_jobs[tracked_job_count].procs[i].status=RUNNING;
@@ -383,6 +389,25 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     }
     if(child_process_count > 0){
         tracked_jobs[tracked_job_count].procs_count = i;
+        
+        // Reconstruct the full pipeline string for the job
+        char full_cmd[MAX_CMD_SIZE] = "";
+        for(int j = 0; j < num_commands; j++) {
+            Token *t = command_arr[j];
+            while(t != NULL) {
+                strncat(full_cmd, t->text, MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                if(t->next != NULL) {
+                    strncat(full_cmd, " ", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                }
+                t = t->next;
+            }
+            if(j < num_commands - 1) {
+                strncat(full_cmd, " | ", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+            }
+        }
+        strncpy(tracked_jobs[tracked_job_count].full_job_command, full_cmd, MAX_CMD_SIZE - 1);
+        tracked_jobs[tracked_job_count].full_job_command[MAX_CMD_SIZE - 1] = '\0';
+        
         tracked_job_count++;
         if(!is_background){
             tcsetpgrp(STDIN_FILENO , pgid);
@@ -436,8 +461,6 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     sigprocmask(SIG_SETMASK , &prev_mask , NULL);
     return failed ? -1 : 0;
 }
-
-
 
 
 void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_dir){
