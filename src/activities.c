@@ -1,9 +1,33 @@
-#include<stdio.h>
-#include<stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "../include/activities.h"
+#include "../include/execute.h"
 
-#include"../include/activities.h"
-#include"../include/execute.h"
-
-void activites(){
-    
+void show_activities() {
+    //printf("DEBUG: activities sees tracked_job_count = %d\n", tracked_job_count);
+    for (int i = 0; i < tracked_job_count; i++) {
+        // Find if this group has any active processes
+        int has_active = 0;
+        for (int j = 0; j < tracked_jobs[i].procs_count; j++) {
+            if (tracked_jobs[i].procs[j].status != COMPLETED) {
+                has_active = 1;
+                break;
+            }
+        }
+        
+        if (has_active) {
+            printf("[%d] pgid %d\n", tracked_jobs[i].job_id, tracked_jobs[i].pgid);
+            for (int j = 0; j < tracked_jobs[i].procs_count; j++) {
+                if (tracked_jobs[i].procs[j].status != COMPLETED) {
+                    const char *state_str = "Unknown";
+                    if (tracked_jobs[i].procs[j].status == RUNNING) {
+                        state_str = "Running";
+                    } else if (tracked_jobs[i].procs[j].status == STOPPED) {
+                        state_str = "Stopped";
+                    }
+                    printf("  %d %s %s\n", tracked_jobs[i].procs[j].pid, tracked_jobs[i].procs[j].command, state_str);
+                }
+            }
+        }
+    }
 }

@@ -2,6 +2,6 @@
 
 #define ACTIVITIES_H
 
-void activities();
+void show_activities();
 
 #endif

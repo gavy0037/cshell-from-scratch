@@ -40,7 +40,8 @@ typedef struct {
     pid_t pgid;
     Process procs[MAX_CMDS];
     int procs_count;
-    //char full_command[MAX_CMD_SIZE];
+    int is_background;
+    char full_command[MAX_CMD_SIZE];
 } JobTrack;
 
 extern JobTrack tracked_jobs[ARGS_MAX];

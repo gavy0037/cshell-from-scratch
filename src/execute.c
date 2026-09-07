@@ -14,6 +14,7 @@
 #include "../include/reveal.h"
 #include "../include/peek.h"
 #include "../include/locate.h"
+#include "../include/activities.h"
 #include "../include/redirect.h"
 
 #include"../include/execute.h"
@@ -57,27 +58,29 @@ void print_job_completion(Process *job){
 
 void print_completed_jobs(){
     for(int i = 0 ; i < tracked_job_count ; i++){
-        int all_completed = 1;
+        // if(tracked_jobs[i].is_background){
+            int all_completed = 1;
         
-        for(int j = 0 ; j < tracked_jobs[i].procs_count ; j++){
-            if(tracked_jobs[i].procs[j].status == COMPLETED_BUT_NOT_REPORTED){
-                print_job_completion(&(tracked_jobs[i].procs[j]));
-                tracked_jobs[i].procs[j].status = COMPLETED;
+            for(int j = 0 ; j < tracked_jobs[i].procs_count ; j++){
+                if(tracked_jobs[i].procs[j].status == COMPLETED_BUT_NOT_REPORTED){
+                    print_job_completion(&(tracked_jobs[i].procs[j]));
+                    tracked_jobs[i].procs[j].status = COMPLETED;
+                }
+                // If any process is NOT completed, the job as a whole isn't done yet
+                if(tracked_jobs[i].procs[j].status != COMPLETED) {
+                    all_completed = 0;
+                }
             }
-            // If any process is NOT completed, the job as a whole isn't done yet
-            if(tracked_jobs[i].procs[j].status != COMPLETED) {
-                all_completed = 0;
+            
+            // If every process in the pipeline is fully COMPLETED, remove the job!
+            if (all_completed) {
+                for(int k = i; k < tracked_job_count - 1; k++){
+                    tracked_jobs[k] = tracked_jobs[k+1];
+                }
+                tracked_job_count--;
+                i--; // adjust index after shift
             }
-        }
-        
-        // If every process in the pipeline is fully COMPLETED, remove the job!
-        if (all_completed) {
-            for(int k = i; k < tracked_job_count - 1; k++){
-                tracked_jobs[k] = tracked_jobs[k+1];
-            }
-            tracked_job_count--;
-            i--; // adjust index after shift
-        }
+        //}
     }
 }
 
@@ -94,7 +97,6 @@ void sigchld_handler(int sig){
                 if(tracked_jobs[i].procs[j].pid == pid){
                     if(WIFEXITED(status) || WIFSIGNALED(status)){
                         tracked_jobs[i].procs[j].exit_status = status;
-
                         tracked_jobs[i].procs[j].status = COMPLETED_BUT_NOT_REPORTED;
                     } else if(WIFSTOPPED(status)){
                         tracked_jobs[i].procs[j].status = STOPPED;
@@ -249,6 +251,11 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         pipe(pipefd);
         Token *command = command_arr[i];
         pid_t p = fork();
+
+        signal(SIGINT , SIG_DFL);
+        signal(SIGTSTP , SIG_DFL);
+        signal(SIGTTOU , SIG_DFL);
+
         foreground_pids[child_process_count] = p;
         child_process_count++;
         
@@ -304,6 +311,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 if(locate(command) != 0){
                     failed = 1;
                 }
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "activities") == 0){
+                show_activities();
             }else{
                 // this is a different command , i have to check the current directory for this exec or the path for this directory
                 
@@ -344,6 +353,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     }
     tracked_jobs[tracked_job_count].procs_count = i;
     if (is_background) {
+        //printf("DEBUG: adding job %d, tracked_job_count now %d\n", tracked_jobs[tracked_job_count].job_id, tracked_job_count + 1);
         tracked_job_count++;
     }
     for(int j = 1 ; j < num_commands ; j++){

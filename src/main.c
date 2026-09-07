@@ -38,6 +38,9 @@ int main() {
         exit(1);
     }
 
+    signal(SIGINT , SIG_IGN);
+    signal(SIGTSTP , SIG_IGN);
+    signal(SIGTTOU , SIG_IGN);
 
     getcwd(home_dir , sizeof(home_dir));
     strcpy(curr_dir , home_dir);
