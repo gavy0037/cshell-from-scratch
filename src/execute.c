@@ -20,7 +20,7 @@
 #include "../include/ping.h"
 #include"../include/execute.h"
 #include"../include/spy.h"
-
+#include"../include/snoop.h"
 JobTrack tracked_jobs[ARGS_MAX];
 int tracked_job_count;
 volatile sig_atomic_t foreground_running = 0;
@@ -353,6 +353,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 show_activities();
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "spy") == 0){
                 spy_process(command);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "snoop") == 0){
+                snoop_process(command);
             }else{
                 // this is a different command , i have to check the current directory for this exec or the path for this directory
                 
