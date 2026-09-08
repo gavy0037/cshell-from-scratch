@@ -400,7 +400,22 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         for(int j = 0; j < num_commands; j++) {
             Token *t = command_arr[j];
             while(t != NULL) {
-                strncat(full_cmd, t->text, MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                if (t->type == WORD) {
+                    strncat(full_cmd, t->text, MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_PIPE) {
+                    strncat(full_cmd, "|", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_AMP) {
+                    strncat(full_cmd, "&", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_SEMI) {
+                    strncat(full_cmd, ";", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_LT) {
+                    strncat(full_cmd, "<", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_GT) {
+                    strncat(full_cmd, ">", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                } else if (t->type == OP_GTGT) {
+                    strncat(full_cmd, ">>", MAX_CMD_SIZE - strlen(full_cmd) - 1);
+                }
+
                 if(t->next != NULL) {
                     strncat(full_cmd, " ", MAX_CMD_SIZE - strlen(full_cmd) - 1);
                 }
