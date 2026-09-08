@@ -19,6 +19,7 @@
 #include "../include/resume.h"
 #include "../include/ping.h"
 #include"../include/execute.h"
+#include"../include/spy.h"
 
 JobTrack tracked_jobs[ARGS_MAX];
 int tracked_job_count;
@@ -350,6 +351,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 }
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "activities") == 0){
                 show_activities();
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "spy") == 0){
+                spy_process(command);
             }else{
                 // this is a different command , i have to check the current directory for this exec or the path for this directory
                 
@@ -357,8 +360,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             }
             exit(failed ? -1 : 0);
         }else{
-            if(i > 0) setpgid(p , pgid);
-            else pgid = p;
+            if(i == 0) pgid = p;
+            setpgid(p , pgid);
 
             if(!job_number_printed && is_background){
                 printf("[%d] %d\n" , job_number , p);
