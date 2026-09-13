@@ -35,7 +35,7 @@ int read_directory(char *path , int show_all , int is_recursive , char *base_pat
             snprintf(full_entry_path, sizeof(full_entry_path), "%s/%s", path, entry->d_name);
             
             struct stat st;
-            int is_dir = (stat(full_entry_path, &st) == 0 && S_ISDIR(st.st_mode));
+            int is_dir = (lstat(full_entry_path, &st) == 0 && S_ISDIR(st.st_mode));
             
             int has_space = (strchr(entry->d_name, ' ') != NULL);
             

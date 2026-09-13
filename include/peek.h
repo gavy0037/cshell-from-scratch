@@ -7,7 +7,7 @@
 
 #define CHUNK_SIZE 4096
 
-void read_stdin(int is_reverse ,int is_line);
-int read_file(int is_reverse , int is_line , char *file_path , char *home_dir);
+void read_stdin(int is_reverse ,int is_line , int *line_counter);
+int read_file(int is_reverse , int is_line , char *file_path , char *home_dir , int *line_counter);
 int peek(Token *head , char *home_dir);
 #endif

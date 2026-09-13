@@ -40,18 +40,35 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
     
     printf("%s\n", curr_job->full_job_command);
 
+    /* Block SIGCHLD before handing terminal so no child reap races the wait loop */
+    sigset_t mask, prev_mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, &prev_mask);
+
     tcsetpgrp(STDIN_FILENO , curr_job->pgid);
     kill(-curr_job->pgid , SIGCONT);
     int status;
     int stopped = 0;
     for(int j = 0 ; j < curr_job->procs_count ; j++){
         if(curr_job->procs[j].status == RUNNING){
-            if(waitpid(curr_job->procs[j].pid , &status , WUNTRACED) == -1){
-                if(errno == EINTR){
-                    kill(-curr_job->pgid , SIGTERM);
-                    printf("\nresume: job timed out\n");
+            while(1){
+                pid_t ret = waitpid(curr_job->procs[j].pid , &status , WUNTRACED);
+                if(ret == -1){
+                    if(errno == EINTR){
+                        if(is_timer){
+                            kill(-curr_job->pgid , SIGTERM);
+                            printf("\nresume: job timed out\n");
+                            break;
+                        }
+                        /* EINTR from a non-timer signal — retry */
+                        continue;
+                    } else if(errno == ECHILD){
+                        break; /* Already reaped by SIGCHLD handler */
+                    }
                     break;
                 }
+                break; /* successful wait */
             }
             if(WIFEXITED(status)){
                 // Exit code checks omitted since we don't track pipeline failure here
@@ -72,6 +89,7 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
         }
     }
 
+    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
     tcsetpgrp(STDIN_FILENO , getpgid(0));
     if(is_timer) alarm(0);
     if(!stopped){

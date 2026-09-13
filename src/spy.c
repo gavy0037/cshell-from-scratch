@@ -14,10 +14,10 @@
 #include"../include/execute.h"
 
 int validate_spy_syntax(Token *cmd){
-    // return 0 if to show to current shell's files , return pid if found pid , return -1 if invalid syntax , return -2 if that process does not exist
+    // return 0 if to show to current shell's files , return pid if found pid , return -1 if invalid syntax , return -2 if that process does not exist, return -3 if permission denied
     Token *t = cmd -> next;
     if(t == NULL){
-        return getpid() ;
+        return getppid() ;
     }
 
     if(t->next != NULL) return -1;
@@ -35,6 +35,8 @@ int validate_spy_syntax(Token *cmd){
     if(kill(p , 0) == -1){
         if(errno == ESRCH){
             return -2;
+        }else if(errno == EPERM){
+            return -3;
         }
     }
     return p;
@@ -56,6 +58,9 @@ void spy_process(Token *cmd){
         return;
     }else if(p == -2){
         printf("spy: no such process\n");
+        return;
+    }else if(p == -3){
+        printf("spy: permission denied\n");
         return;
     }
 

@@ -101,7 +101,8 @@ void handle_output_redirection(Token *head){
         return;
     }else{
         // parent waits for sub process to finish writing to temp file
-        waitpid(sub_pid, NULL, 0);
+        int sub_status;
+        waitpid(sub_pid, &sub_status, 0);
 
         lseek(temp_fd, 0, SEEK_SET); // rewind temp file to beginning
         char buffer[4096];
@@ -113,6 +114,12 @@ void handle_output_redirection(Token *head){
         }
         for(int i = 0 ; i < count ; i++) close(fds[i]);
         close(temp_fd);
-        exit(0);
+        if(WIFEXITED(sub_status)){
+            exit(WEXITSTATUS(sub_status));
+        }else if(WIFSIGNALED(sub_status)){
+            exit(128 + WTERMSIG(sub_status));
+        }else{
+            exit(0);
+        }
     }
 }

@@ -9,7 +9,7 @@ void show_activities() {
             // Find if this group has any active processes
             int has_active = 0;
             for (int j = 0; j < tracked_jobs[i].procs_count; j++) {
-                if (tracked_jobs[i].procs[j].status != COMPLETED) {
+                if (tracked_jobs[i].procs[j].status == RUNNING || tracked_jobs[i].procs[j].status == STOPPED) {
                     has_active = 1;
                     break;
                 }
@@ -18,13 +18,13 @@ void show_activities() {
             if (has_active) {
                 printf("[%d] pgid %d\n", tracked_jobs[i].job_id, tracked_jobs[i].pgid);
                 for (int j = 0; j < tracked_jobs[i].procs_count; j++) {
-                    if (tracked_jobs[i].procs[j].status != COMPLETED) {
-                        const char *state_str = "Unknown";
-                        if (tracked_jobs[i].procs[j].status == RUNNING) {
-                            state_str = "Running";
-                        } else if (tracked_jobs[i].procs[j].status == STOPPED) {
-                            state_str = "Stopped";
-                        }
+                    const char *state_str = NULL;
+                    if (tracked_jobs[i].procs[j].status == RUNNING) {
+                        state_str = "Running";
+                    } else if (tracked_jobs[i].procs[j].status == STOPPED) {
+                        state_str = "Stopped";
+                    }
+                    if(state_str != NULL){
                         printf("  %d %s %s\n", tracked_jobs[i].procs[j].pid, tracked_jobs[i].procs[j].command, state_str);
                     }
                 }

@@ -11,7 +11,7 @@
 #include"../include/lexer.h"
 #include"../include/hop.h"
 
-void read_stdin(int is_reverse , int is_line){
+void read_stdin(int is_reverse , int is_line , int *line_counter){
     int fd = STDIN_FILENO;
     int capacity = 4096;
     int read_capacity = 0;
@@ -41,7 +41,7 @@ void read_stdin(int is_reverse , int is_line){
 
     
     if(is_reverse){
-        int current_line = line_count;
+        int current_line = *line_counter + line_count - 1;
         char line_buffer[4096];
         int i = read_capacity - 1;
         while(i >= 0){
@@ -68,8 +68,8 @@ void read_stdin(int is_reverse , int is_line){
                 }
             }
         }
+        *line_counter += line_count;
     }else{
-        int current_line = 1;
         int i = 0;
         while(i < read_capacity){
             // find the end of this line and check for graph chars
@@ -82,17 +82,18 @@ void read_stdin(int is_reverse , int is_line){
             if(i < read_capacity) i++;
 
             if(is_line && has_graph){
-                printf("%d ", current_line++);
+                printf("%d ", (*line_counter)++);
             }
             for(int k = start; k < i; k++){
                 printf("%c", buffer[k]);
             }
         }
     }
+    free(buffer);
     fflush(stdout);
 }
 
-int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
+int read_file(int is_reverse , int is_line , char *file_path , char *home_dir , int *line_counter){
     char *resolved_path = resolve_path(file_path , "" , home_dir , "");
     char buffer[CHUNK_SIZE];// for reading in chunks
     struct stat statbuf;
@@ -144,7 +145,9 @@ int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 
         char *leftover = NULL;
         int leftover_len = 0;
-        int current_line = line_count;
+        /* In reverse mode: start from the last line of this file's portion of the
+           global counter, counting down as we go */
+        int current_line = *line_counter + line_count - 1;
 
         while(current_pos > 0){
             int to_read = (current_pos >= CHUNK_SIZE ? CHUNK_SIZE : current_pos);
@@ -199,8 +202,8 @@ int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
             free(leftover);
             leftover = NULL;
         }
+        *line_counter += line_count;
     }else{
-        int current_line = 1;
         lseek(fd, 0, SEEK_SET);
         int bytes_read = 0;
 
@@ -216,7 +219,7 @@ int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
 
                 if(buffer[i] == '\n'){
                     if(is_line && has_graph){
-                        printf("%d ", current_line++);
+                        printf("%d ", (*line_counter)++);
                     }
                     for(int k = 0; k < line_len; k++){
                         printf("%c", line_buf[k]);
@@ -229,7 +232,7 @@ int read_file(int is_reverse , int is_line , char *file_path , char *home_dir){
         // handle last line if file doesn't end with '\n'
         if(line_len > 0){
             if(is_line && has_graph){
-                printf("%d ", current_line++);
+                printf("%d ", (*line_counter)++);
             }
             for(int k = 0; k < line_len; k++){
                 printf("%c", line_buf[k]);
@@ -246,6 +249,7 @@ int peek(Token *head , char *home_dir){
     Token *t = head->next;
     int is_reverse = 0 , is_line = 0;
     int file_count = 0;
+    int line_counter = 1; /* shared across all files for continuous line numbering */
 
     while(t != NULL){
         if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
@@ -268,9 +272,9 @@ int peek(Token *head , char *home_dir){
             }else{
                 file_count++;
                 if(strcmp(t->text , "-") == 0){
-                    read_stdin(is_reverse , is_line);
+                    read_stdin(is_reverse , is_line , &line_counter);
                 }else{
-                    read_file(is_reverse , is_line , t->text , home_dir);
+                    read_file(is_reverse , is_line , t->text , home_dir , &line_counter);
                 }
             }
             t = t->next;
@@ -279,7 +283,7 @@ int peek(Token *head , char *home_dir){
         }
     }
     if(file_count == 0){
-        read_stdin(is_reverse , is_line);
+        read_stdin(is_reverse , is_line , &line_counter);
     }
 
     return 0;

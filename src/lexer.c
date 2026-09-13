@@ -36,7 +36,7 @@ void append_to_list(Token **head , Token **tail , TokenType type, char *word){
 Token *tokenize(char *input_string){
     State state = NORMAL;
     int i = 0;
-    char current_word[256];
+    char current_word[4096];
     int word_pointer = 0;
     Token *head = NULL, *tail = NULL;
 
@@ -61,13 +61,11 @@ Token *tokenize(char *input_string){
                     free_token_list(head);
                     return NULL;
                 }
-                current_word[word_pointer] = input_string[i];
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 i++;
-                word_pointer++;
             }else{
-                current_word[word_pointer] = input_string[i];
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 i++;
-                word_pointer++;
             }
         }else if(state == NORMAL){
             if(input_string[i] == '|'){
@@ -91,15 +89,14 @@ Token *tokenize(char *input_string){
                     free_token_list(head);
                     return NULL;
                 }
-                current_word[word_pointer++] = input_string[i];
+                if(word_pointer < 4094) current_word[word_pointer++] = input_string[i];
                 state = IN_WORD;
             }else if(input_string[i] == '\''){
                 state = IN_SQ;
             }else if(input_string[i] == '"'){
                 state = IN_DQ;
             }else if(input_string[i] != ' ' && input_string[i] != '\t' && input_string[i] != '\n' && input_string[i] != '\r' && input_string[i] != '\\'){
-                current_word[word_pointer] = input_string[i];
-                word_pointer++;
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 state = IN_WORD;
             }
             i++;
@@ -108,9 +105,8 @@ Token *tokenize(char *input_string){
                 state = IN_WORD;
                 i++;
             }else{
-                current_word[word_pointer] = input_string[i];
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 i++;
-                word_pointer++;
             }
         }else if(state == IN_DQ){
             if(input_string[i] == '\\'){
@@ -120,18 +116,16 @@ Token *tokenize(char *input_string){
                     return NULL;
                 }
                 if(input_string[i] != '"' && input_string[i] != '\\'){
-                    current_word[word_pointer++] = '\\';
+                    if(word_pointer < 4094) current_word[word_pointer++] = '\\';
                 }
-                current_word[word_pointer] = input_string[i];
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 i++;
-                word_pointer++;
             }else if(input_string[i] == '"'){
                 state = IN_WORD;
                 i++;
             }else{
-                current_word[word_pointer] = input_string[i];
+                if(word_pointer < 4094){ current_word[word_pointer] = input_string[i]; word_pointer++; }
                 i++;
-                word_pointer++;
             }
         }
     }

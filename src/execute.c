@@ -135,7 +135,6 @@ void sigchld_handler(int sig){
         }
     }
 
-    print_completed_jobs();
     errno = saved_errno;
 }
 
@@ -165,7 +164,7 @@ void execute_command(Token *head , char *full_path){
 
     if(execv(full_path , args) == -1){
         printf("cshell: command not found (%s)\n" , head->text);
-        exit(-1);
+        exit(127);
     }
 }
 
@@ -185,7 +184,7 @@ void process_command_path(Token *head){
             execute_command(head , head->text);
         }else{
             printf("cshell: command not found (%s)\n" , head->text);
-            exit(-1);
+            exit(127);
         }
 
         return ;
@@ -233,7 +232,7 @@ void process_command_path(Token *head){
 
     free(path_copy);
     printf("cshell: command not found (%s)\n" , head->text);
-    exit(-1);
+    exit(127);
 }
 
 int job_counter = 1;
@@ -253,42 +252,54 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     sigprocmask(SIG_BLOCK , &mask , &prev_mask);
     pid_t pgid;
     while(i < num_commands){
-        if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
-            if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
-                break;
+        /* Parent-side builtins: only execute directly in the parent when this is
+           the sole command in the job (no pipeline). In a pipeline they must be
+           forked like any other command so that pipe FDs are set up correctly. */
+        if(num_commands == 1){
+            if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
+                if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
+                    break;
+                }
+                i++;
+                continue;
+            }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "cd") == 0){
+                char *target_dir = home_dir; // Default to home if no argument
+                if (command_arr[i]->next != NULL) {
+                    target_dir = command_arr[i]->next->text;
+                }
+                if (chdir(target_dir) != 0) {
+                    perror("cshell");
+                }
+                i++;
+                continue;
+            }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "exit") == 0){
+                printf("Exiting...\n");
+                i++;
+                kill_all_jobs();
+                exit(0);
             }
-            i++;
-            continue;
-        }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "cd") == 0){
-            char *target_dir = home_dir; // Default to home if no argument
-            if (command_arr[i]->next != NULL) {
-                target_dir = command_arr[i]->next->text;
+            else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "resume") == 0){
+                resume_command(command_arr[i]);
+                i++;
+                continue;
             }
-            if (chdir(target_dir) != 0) {
-                perror("cshell");
+            else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "ping") == 0){
+                ping_command(command_arr[i]);
+                i++;
+                continue;
             }
-            i++;
-            continue;
-        }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "exit") == 0){
-            printf("Exiting...\n");
-            i++;
-            kill_all_jobs();
-            exit(0);
-        }
-        else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "resume") == 0){
-            resume_command(command_arr[i]);
-            i++;
-            continue;
-        }
-        else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "ping") == 0){
-            ping_command(command_arr[i]);
-            i++;
-            continue;
         }
 
         int pipefd[2];
         pipe(pipefd);
         Token *command = command_arr[i];
+
+        /* ISSUE-16: Sync pipe so first background child waits for parent's banner print */
+        int syncfd[2] = {-1, -1};
+        if(i == 0 && is_background){
+            pipe(syncfd);
+        }
+
         pid_t p = fork();
 
         foreground_pids[child_process_count] = p;
@@ -306,6 +317,15 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             }
 
             sigprocmask(SIG_SETMASK , &prev_mask , NULL);
+
+            /* Wait for parent to print banner before starting */
+            if(syncfd[0] != -1){
+                close(syncfd[1]); /* close write end in child */
+                char dummy;
+                read(syncfd[0], &dummy, 1); /* block until parent closes its write end */
+                close(syncfd[0]);
+            }
+
             if(i > 0){
                 // connect this child's input to the previous pipe's output
                 dup2(last_pipe_read , STDIN_FILENO);
@@ -355,6 +375,28 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 spy_process(command);
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "snoop") == 0){
                 snoop_process(command);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "hop") == 0){
+                /* hop in a pipeline: runs in child — chdir affects only child, which is the correct
+                   behaviour for Q43 (the spec says hop in a pipeline is allowed, not that it changes
+                   the parent's cwd). */
+                if(hop(home_dir , prev_dir , curr_dir , command) != 0){
+                    failed = 1;
+                }
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "cd") == 0){
+                char *target_dir = home_dir;
+                if(command->next != NULL && command->next->type == WORD){
+                    target_dir = command->next->text;
+                }
+                if(chdir(target_dir) != 0){
+                    perror("cshell");
+                    failed = 1;
+                }
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "exit") == 0){
+                exit(0);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "resume") == 0){
+                resume_command(command);
+            }else if(command != NULL && command->type == WORD && strcmp(command->text , "ping") == 0){
+                ping_command(command);
             }else{
                 // this is a different command , i have to check the current directory for this exec or the path for this directory
                 
@@ -365,9 +407,30 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             if(i == 0) pgid = p;
             setpgid(p , pgid);
 
+            /* ISSUE-13: Hand terminal to the process group immediately after the first child
+               is forked and pgid is established, to avoid a race window. */
+            if(i == 0 && !is_background){
+                tcsetpgrp(STDIN_FILENO , pgid);
+            }
+
             if(!job_number_printed && is_background){
                 printf("[%d] %d\n" , job_number , p);
                 job_number_printed  = 1;
+                fflush(stdout);
+                /* ISSUE-16: Unblock the first child now that banner is printed */
+                if(syncfd[1] != -1){
+                    close(syncfd[1]);
+                    syncfd[1] = -1;
+                }
+            } else if(syncfd[1] != -1){
+                /* Not a background job — close sync pipe immediately (shouldn't happen but be safe) */
+                close(syncfd[1]);
+                syncfd[1] = -1;
+            }
+            /* Also close the read end in parent — child owns it */
+            if(syncfd[0] != -1){
+                close(syncfd[0]);
+                syncfd[0] = -1;
             }
             tracked_jobs[tracked_job_count].is_background = is_background;
             tracked_jobs[tracked_job_count].pgid = pgid;
@@ -428,7 +491,11 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         strncpy(tracked_jobs[tracked_job_count].full_job_command, full_cmd, MAX_CMD_SIZE - 1);
         tracked_jobs[tracked_job_count].full_job_command[MAX_CMD_SIZE - 1] = '\0';
         
-        tracked_job_count++;
+        /* ISSUE-20: Bounds guard to prevent process table overflow */
+        if(tracked_job_count < ARGS_MAX - 1){
+            tracked_job_count++;
+        }
+        /* The late tcsetpgrp call is still kept as a fallback for subsequent children */
         if(!is_background){
             tcsetpgrp(STDIN_FILENO , pgid);
         }
@@ -446,28 +513,32 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
     if(!is_background && child_process_count > 0){
         int stopped = 0;
         for(int j = 0 ; j < child_process_count ; j++){
-            waitpid(foreground_pids[j] , &status , WUNTRACED);
+            int ret = waitpid(foreground_pids[j] , &status , WUNTRACED);
+            if(ret <= 0) continue;
             if(WIFEXITED(status)){
                 int exit_code = WEXITSTATUS(status);
-                if(exit_code != 0){
+                if(exit_code == 127){
                     failed = 1;
                 }
             }else if(WIFSTOPPED(status)){
                 stopped = 1;
-                tracked_jobs[tracked_job_count-1].job_id = job_counter++;
-                tracked_jobs[tracked_job_count-1].is_background = 1;
-                for(int k = 0; k < tracked_jobs[tracked_job_count-1].procs_count; k++){
-                    tracked_jobs[tracked_job_count-1].procs[k].status = STOPPED;
-                }
-                print_job_stopped_or_running(&(tracked_jobs[tracked_job_count-1]) , 1);
-                break;
+                tracked_jobs[tracked_job_count-1].procs[j].status = STOPPED;
             }else if(WIFSIGNALED(status)){
                 int sig = WTERMSIG(status);
                 if(sig == SIGINT){
                     failed = 1;
-                    break;
                 }
             }
+        }
+        if(stopped){
+            tracked_jobs[tracked_job_count-1].job_id = job_counter++;
+            tracked_jobs[tracked_job_count-1].is_background = 1;
+            for(int k = 0; k < tracked_jobs[tracked_job_count-1].procs_count; k++){
+                if(tracked_jobs[tracked_job_count-1].procs[k].status != STOPPED){
+                    tracked_jobs[tracked_job_count-1].procs[k].status = STOPPED;
+                }
+            }
+            print_job_stopped_or_running(&(tracked_jobs[tracked_job_count-1]) , 1);
         }
         if(!stopped){
             tracked_job_count--;
@@ -492,11 +563,16 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
     int i = 0,j = 0; // i for job array and j for individual command array
     Token *st = t;
 
+    /* ISSUE-17: Track orphaned operator tokens so we can free them after execution */
+    Token *orphaned_ops[ARGS_MAX * 2];
+    int orphaned_count = 0;
+
     while(t != NULL){
         if(t->type == OP_PIPE){
             job_arr[i]->command_list[j] = st;
             j++;
             prev->next = NULL;
+            orphaned_ops[orphaned_count++] = t; /* save operator node before moving past it */
             st = t->next;
         }else if(t->type == OP_SEMI){
             job_arr[i]->command_list[j] = st;
@@ -505,6 +581,7 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             j = 0;
             i++;
             prev->next = NULL;
+            orphaned_ops[orphaned_count++] = t;
             st = t->next;
         }else if(t->type == OP_AMP){
             job_arr[i]->command_list[j] = st;
@@ -513,6 +590,7 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             j  = 0 ;
             i++;
             prev->next = NULL;
+            orphaned_ops[orphaned_count++] = t;
             st = t->next;
         }
         prev = t;
@@ -526,7 +604,7 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
         job_arr[i]->num_commands = j+1;
         j = 0;
         i++;
-        prev->next = NULL;
+        if(prev) prev->next = NULL;
     }
     
     int num_jobs = i;
@@ -546,5 +624,9 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
     }
     for(int k = 0 ; k < ARGS_MAX ; k++){
         free(job_arr[k]);
+    }
+    /* ISSUE-17: Free the orphaned operator tokens now that execution is done */
+    for(int k = 0; k < orphaned_count; k++){
+        free(orphaned_ops[k]); /* operator tokens have text=NULL so no text to free */
     }
 }

@@ -64,6 +64,8 @@ FrecencyNode *load_frecency_list(char *shell_home) {
     }
 
     fclose(f);
+    free(path_line);
+    free(freq_line);
     
     return head;
 }
@@ -230,12 +232,34 @@ int hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
         return 0;
     }
     
+    /* Skip redirection operator tokens and their filename arguments */
+    while(t != NULL && t->type != WORD){
+        if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
+            if(t->next != NULL) t = t->next->next;
+            else t = NULL;
+        } else {
+            t = t->next;
+        }
+    }
+
+    if(t == NULL) return 0;
+
     if(t->text[0] == '-' && strlen(prev_dir) == 0){
         getcwd(prev_dir , 4096);
         t = t->next;
     }
     char buffer[4096];
     while(t != NULL){
+        /* Skip operator tokens inside the argument list */
+        if(t->type != WORD){
+            if(t->type == OP_LT || t->type == OP_GT || t->type == OP_GTGT){
+                if(t->next != NULL) t = t->next->next;
+                else t = NULL;
+            } else {
+                t = t->next;
+            }
+            continue;
+        }
         if(strcmp(t->text, ".") == 0){
             t = t->next;
             continue;

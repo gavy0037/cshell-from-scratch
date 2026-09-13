@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include<string.h>
 #include <signal.h>
+#include <errno.h>
 #include "../include/lexer.h"
 #include "../include/parser.h"
 #include "../include/prompt.h"
@@ -29,6 +30,11 @@ void dummy_sigalrm_handler(int sig) {
     // Dummy handler to interrupt waitpid without restarting it
 }
 
+static volatile sig_atomic_t sigint_flag = 0;
+void sigint_handler(int sig) {
+    sigint_flag = 1;
+}
+
 int main() {
 
     struct sigaction sa;
@@ -47,7 +53,13 @@ int main() {
     sa_alrm.sa_flags = 0; // NO SA_RESTART so that we do not restart waitpid in resuming fg process , if we did , then that would consume the interuppt and we will be stuck there forever
     sigaction(SIGALRM, &sa_alrm, NULL);
 
-    signal(SIGINT , SIG_IGN);
+    /* SIGINT: catch it so Ctrl+C at the prompt re-displays the prompt instead of exiting */
+    struct sigaction sa_int;
+    sa_int.sa_handler = sigint_handler;
+    sigemptyset(&sa_int.sa_mask);
+    sa_int.sa_flags = 0; /* No SA_RESTART — fgets() must be interrupted */
+    sigaction(SIGINT, &sa_int, NULL);
+
     signal(SIGTSTP , SIG_IGN);
     signal(SIGTTOU , SIG_IGN);
 
@@ -55,10 +67,21 @@ int main() {
     strcpy(curr_dir , home_dir);
     int consecutive_eof = 0;
     while (1) {
+        print_completed_jobs();
         display_prompt(home_dir);
         fflush(stdout);
         char input[4096];
         if (fgets(input, sizeof(input), stdin) == NULL) {
+            if(sigint_flag){
+                sigint_flag = 0;
+                printf("\n");
+                clearerr(stdin);
+                continue;
+            }
+            if(errno == EINTR){
+                clearerr(stdin);
+                continue;
+            }
             if (feof(stdin)) {
                 clearerr(stdin); // Clear EOF state so we can read again if we don't exit
                 
@@ -84,6 +107,13 @@ int main() {
             }
         }
         
+        /* Clear SIGINT flag in case it fired between fgets returning and here */
+        if(sigint_flag){
+            sigint_flag = 0;
+            printf("\n");
+            continue;
+        }
+
         consecutive_eof = 0;
 
         int is_empty = 1;
