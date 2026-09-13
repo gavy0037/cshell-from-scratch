@@ -237,6 +237,7 @@ int read_file(int is_reverse , int is_line , char *file_path , char *home_dir , 
             for(int k = 0; k < line_len; k++){
                 printf("%c", line_buf[k]);
             }
+            printf("\n");
         }
     }
     fflush(stdout);

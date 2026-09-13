@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<ctype.h>
 
 #include"../include/resume.h"
 #include"../include/execute.h"
@@ -128,6 +129,13 @@ int resume_command(Token *command){
     if(job_tok->text == NULL || job_tok->text[0] != '%'){
         printf("resume: invalid syntax\n");
         return -1;
+    }
+    
+    for(int i = 1; job_tok->text[i] != '\0'; i++){
+        if(!isdigit(job_tok->text[i])){
+            printf("resume: invalid syntax\n");
+            return -1;
+        }
     }
     
     int job_number = atoi(job_tok->text + 1);

@@ -11,7 +11,9 @@ void display_prompt(char *home_dir){
     char *userName = user_info->pw_name;
 
     char hostName[256];
-    gethostname(hostName , sizeof(hostName));
+    if(gethostname(hostName , sizeof(hostName)) != 0){
+        strcpy(hostName, "unknown");
+    }
 
     // the current dir is the home dir
     char display_dir[4096];
@@ -33,4 +35,5 @@ void display_prompt(char *home_dir){
     }
 
     printf("<%s@%s:%s> " , userName , hostName , display_dir);
+    fflush(stdout);
 }

@@ -96,7 +96,10 @@ int ping_command(Token *command) {
             return -1;
         }
         
-        kill(-found_job->pgid, real_sig);
+        if (kill(-found_job->pgid, real_sig) == -1) {
+            perror("ping");
+            return -1;
+        }
         printf("Sent signal %d to %s\n", sig_num, target_str);
         
     } else {
@@ -116,7 +119,10 @@ int ping_command(Token *command) {
             return -1;
         }
         
-        kill(target_id, real_sig);
+        if (kill(target_id, real_sig) == -1) {
+            perror("ping");
+            return -1;
+        }
         printf("Sent signal %d to %s\n", sig_num, target_str);
     }
 
