@@ -124,7 +124,7 @@ int reveal(char *home_dir , char *prev_dir , char *curr_dir , Token *head){
     }else{
         if(target_path[0] == '-' && strlen(prev_dir) == 0){
             printf("reveal: no such directory\n");
-            return 0;
+            return -1;
         }
         strcpy(path_to_inspect , resolve_path(target_path ,prev_dir , home_dir ,curr_dir));
         if(read_directory(path_to_inspect , show_all , is_recursive , "") != 0){

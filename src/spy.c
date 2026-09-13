@@ -143,10 +143,14 @@ void spy_process(Token *cmd){
                 int rlen = readlink(fdpath, resolved, sizeof(resolved) - 1);
                 if (rlen == -1) continue;
                 resolved[rlen] = '\0';
-
+                const char *type = "UNKNOWN";
                 struct stat st;
-                stat(fdpath, &st);   // follows the symlink automatically
-                const char *type = classify(st.st_mode);  // REG/DIR/CHR/BLK
+                // follows the symlink automatically
+
+                // Only classify if stat successfully reads the file
+                if(stat(fdpath, &st) == 0){
+                    type = classify(st.st_mode);  // REG/DIR/CHR/BLK
+                }
 
                 fd_paths[fdnum] = strdup(resolved);
                 fd_types[fdnum] = strdup(type);

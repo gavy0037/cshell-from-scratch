@@ -200,20 +200,22 @@ void process_command_path(Token *head){
         char curr_dir[4096];
         getcwd(curr_dir , sizeof(curr_dir));
         DIR *dir = opendir(curr_dir);
-        struct dirent *entry;
-        while((entry = readdir(dir)) != NULL){
-            if(strcmp(head->text , entry->d_name) == 0){
-                struct stat st;
-                char full_file_path[8192];
-                snprintf(full_file_path , 8192 , "%s/%s" , curr_dir , head->text);
-                if(stat(full_file_path , &st) == 0 && S_ISREG(st.st_mode) && access(full_file_path , X_OK) == 0){
-                    closedir(dir);
-                    execute_command(head,  full_file_path);
-                    return;
+        if(dir != NULL){
+            struct dirent *entry;
+            while((entry = readdir(dir)) != NULL){
+                if(strcmp(head->text , entry->d_name) == 0){
+                    struct stat st;
+                    char full_file_path[8192];
+                    snprintf(full_file_path , 8192 , "%s/%s" , curr_dir , head->text);
+                    if(stat(full_file_path , &st) == 0 && S_ISREG(st.st_mode) && access(full_file_path , X_OK) == 0){
+                        closedir(dir);
+                        execute_command(head,  full_file_path);
+                        return;
+                    }
                 }
             }
+            closedir(dir);
         }
-        closedir(dir);
     }
 
     if(head->text[0] == '%'){
@@ -265,7 +267,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         /* Parent-side builtins: only execute directly in the parent when this is
            the sole command in the job (no pipeline). In a pipeline they must be
            forked like any other command so that pipe FDs are set up correctly. */
-        if(num_commands == 1){
+        if(num_commands == 1 && !is_background){
             if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
                 if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
                     break;
@@ -311,7 +313,16 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
         }
 
         pid_t p = fork();
+        if(p < 0){
+            perror("cshell: fork failed\n");
 
+            if(last_pipe_read != -1) close(last_pipe_read);
+            if(pipefd[0] != -1) close(pipefd[0]);
+            if(pipefd[1] != -1) close(pipefd[1]);
+
+            failed = 1;
+            break;
+        }
         foreground_pids[child_process_count] = p;
         child_process_count++;
         
@@ -622,7 +633,9 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
 
     while(i < num_jobs){
         if(job_arr[i]->job_type == JOB_FOREGROUND){
-            execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir , curr_dir , 0 , 0);
+            if(execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir , curr_dir , 0 , 0) != 0){
+                break;
+            }
         }else{
             job_arr[i]->job_number = job_counter;
             execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir,  curr_dir , 1 , job_counter);

@@ -50,6 +50,8 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
     kill(-curr_job->pgid , SIGCONT);
     int status;
     int stopped = 0;
+
+    int timer_timed_out = 0;
     for(int j = 0 ; j < curr_job->procs_count ; j++){
         if(curr_job->procs[j].status == RUNNING){
             while(1){
@@ -59,6 +61,7 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
                         if(is_timer){
                             kill(-curr_job->pgid , SIGTERM);
                             printf("\nresume: job timed out\n");
+                            timer_timed_out = 1;
                             break;
                         }
                         /* EINTR from a non-timer signal — retry */
@@ -70,6 +73,11 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
                 }
                 break; /* successful wait */
             }
+
+            if(timer_timed_out){
+                break;
+            }
+
             if(WIFEXITED(status)){
                 // Exit code checks omitted since we don't track pipeline failure here
             }else if(WIFSTOPPED(status)){

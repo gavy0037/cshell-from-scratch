@@ -80,6 +80,7 @@ void trace_loop(pid_t pid) {
     struct timespec start, end;
     long current_syscall = -1;
 
+    ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_TRACESYSGOOD);
     while (1) {
         ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
         waitpid(pid, &status, 0);
@@ -92,27 +93,30 @@ void trace_loop(pid_t pid) {
             break; // Traced process was killed by a signal
         }
 
-        if (!in_syscall) {
-            // Syscall ENTRY
-            struct user_regs_struct regs;
-            ptrace(PTRACE_GETREGS, pid, NULL, &regs);
-            current_syscall = regs.orig_rax;
-            clock_gettime(CLOCK_MONOTONIC, &start);
-            in_syscall = 1;
-        } else {
-            // Syscall EXIT
-            clock_gettime(CLOCK_MONOTONIC, &end);
-            double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-            
-            SyscallStat *entry = find_or_create(current_syscall);
-            entry->count++;
-            entry->total_time += elapsed;
-            if (entry->first_seen_order == -1) {
-                entry->first_seen_order = global_order++;
+        if(WIFSTOPPED(status) && WSTOPSIG(status) == (SIGTRAP | 0x80)){
+            if (!in_syscall) {
+                // Syscall ENTRY
+                struct user_regs_struct regs;
+                ptrace(PTRACE_GETREGS, pid, NULL, &regs);
+                current_syscall = regs.orig_rax;
+                clock_gettime(CLOCK_MONOTONIC, &start);
+                in_syscall = 1;
+            } else {
+                // Syscall EXIT
+                clock_gettime(CLOCK_MONOTONIC, &end);
+                double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+                
+                SyscallStat *entry = find_or_create(current_syscall);
+                entry->count++;
+                entry->total_time += elapsed;
+                if (entry->first_seen_order == -1) {
+                    entry->first_seen_order = global_order++;
+                }
+                
+                in_syscall = 0;
             }
-            
-            in_syscall = 0;
         }
+
     }
 
     // Cleanup and Summary
