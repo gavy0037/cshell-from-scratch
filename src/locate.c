@@ -31,7 +31,7 @@ int search_path_for_exe(char *file_name){
 
 int locate(Token *head){
     char curr_dir[4096];
-    getcwd(curr_dir ,sizeof(curr_dir));
+    if (getcwd(curr_dir, sizeof(curr_dir)) == NULL) return -1;
     struct stat path_stat;
     Token *t = head->next;
     int arg_count = 0;

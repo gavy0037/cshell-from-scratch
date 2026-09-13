@@ -162,23 +162,8 @@ void snoop_command(Token *cmd) {
         // Child
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 
-        char *args[ARGS_MAX];
-        Token *t = cmd;
-        int i = 0;
-        while (t != NULL && i < ARGS_MAX - 1) {
-            if (t->type == WORD) {
-                args[i++] = t->text;
-                t = t->next;
-            } else {
-                break;
-            }
-        }
-        args[i] = NULL;
-
-        if (execvp(args[0], args) == -1) {
-            printf("snoop: command not found\n");
-            _exit(1);
-        }
+        process_command_path(cmd);
+        _exit(127); // Fail safe if it returns
     } else {
         // Parent
         int status;

@@ -44,6 +44,23 @@ void kill_all_jobs() {
     }
 }
 
+void strip_redirections(Token *cmd) {
+    Token *curr = cmd;
+    while (curr != NULL && curr->next != NULL) {
+        if (curr->next->type == OP_LT || curr->next->type == OP_GT || curr->next->type == OP_GTGT) {
+            Token *op = curr->next;
+            Token *file = op->next;
+            if (file != NULL) {
+                curr->next = file->next;
+            } else {
+                curr->next = NULL;
+            }
+        } else {
+            curr = curr->next;
+        }
+    }
+}
+
 void safe_print(const char *str) {
     write(STDOUT_FILENO, str, strlen(str));
 }
@@ -86,21 +103,23 @@ void print_completed_jobs(){
             int all_completed = 1;
         
             for(int j = 0 ; j < tracked_jobs[i].procs_count ; j++){
-                if(tracked_jobs[i].procs[j].status == COMPLETED_BUT_NOT_REPORTED){
-                    // Only print completion message for the FIRST process in the pipeline (index 0)
-                    if(j == 0) {
-                        print_job_completion(&(tracked_jobs[i].procs[j]));
-                    }
-                    tracked_jobs[i].procs[j].status = COMPLETED;
-                }
-                // If any process is NOT completed, the job as a whole isn't done yet
-                if(tracked_jobs[i].procs[j].status != COMPLETED) {
+                if(tracked_jobs[i].procs[j].status != COMPLETED_BUT_NOT_REPORTED && 
+                   tracked_jobs[i].procs[j].status != COMPLETED) {
                     all_completed = 0;
+                    break;
                 }
             }
             
-            // If every process in the pipeline is fully COMPLETED, remove the job!
             if (all_completed) {
+                for(int j = 0 ; j < tracked_jobs[i].procs_count ; j++){
+                    if(tracked_jobs[i].procs[j].status == COMPLETED_BUT_NOT_REPORTED){
+                        if(j == 0) {
+                            print_job_completion(&(tracked_jobs[i].procs[j]));
+                        }
+                        tracked_jobs[i].procs[j].status = COMPLETED;
+                    }
+                }
+
                 sigset_t mask, prev_mask;
                 sigemptyset(&mask);
                 sigaddset(&mask, SIGCHLD);
@@ -268,35 +287,58 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
            the sole command in the job (no pipeline). In a pipeline they must be
            forked like any other command so that pipe FDs are set up correctly. */
         if(num_commands == 1 && !is_background){
-            if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "hop") == 0) {
-                if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
-                    break;
+            int is_builtin = 0;
+            char *txt = NULL;
+            if(command_arr[i] != NULL && command_arr[i]->type == WORD) {
+                txt = command_arr[i]->text;
+                if(strcmp(txt, "hop") == 0 || strcmp(txt, "cd") == 0 || strcmp(txt, "exit") == 0 || 
+                   strcmp(txt, "resume") == 0 || strcmp(txt, "ping") == 0) {
+                    is_builtin = 1;
                 }
-                i++;
-                continue;
-            }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "cd") == 0){
-                char *target_dir = home_dir; // Default to home if no argument
-                if (command_arr[i]->next != NULL) {
-                    target_dir = command_arr[i]->next->text;
-                }
-                if (chdir(target_dir) != 0) {
-                    perror("cshell");
-                }
-                i++;
-                continue;
-            }else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "exit") == 0){
-                printf("Exiting...\n");
-                i++;
-                kill_all_jobs();
-                exit(0);
             }
-            else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "resume") == 0){
-                resume_command(command_arr[i]);
-                i++;
-                continue;
-            }
-            else if(command_arr[i] != NULL && command_arr[i]->type == WORD && strcmp(command_arr[i]->text, "ping") == 0){
-                ping_command(command_arr[i]);
+
+            if(is_builtin) {
+                int saved_stdout = dup(STDOUT_FILENO);
+                int out_fd = -1;
+                Token *rt = command_arr[i];
+                while(rt != NULL) {
+                    if((rt->type == OP_GT || rt->type == OP_GTGT) && rt->next != NULL) {
+                        int flags = O_WRONLY | O_CREAT | ((rt->type == OP_GT) ? O_TRUNC : O_APPEND);
+                        out_fd = open(rt->next->text, flags, 0644);
+                        if(out_fd != -1) {
+                            dup2(out_fd, STDOUT_FILENO);
+                            close(out_fd);
+                        }
+                        break; 
+                    }
+                    rt = rt->next;
+                }
+
+                strip_redirections(command_arr[i]);
+
+                if(strcmp(txt, "hop") == 0) {
+                    if(hop(home_dir, prev_dir, curr_dir, command_arr[i]) != 0){
+                        failed = 1;
+                    }
+                } else if(strcmp(txt, "cd") == 0){
+                    char *target_dir = home_dir;
+                    if (command_arr[i]->next != NULL && command_arr[i]->next->type == WORD) {
+                        target_dir = command_arr[i]->next->text;
+                    }
+                    if (chdir(target_dir) != 0) perror("cshell");
+                } else if(strcmp(txt, "exit") == 0){
+                    printf("Exiting...\n");
+                    kill_all_jobs();
+                    exit(0);
+                } else if(strcmp(txt, "resume") == 0){
+                    resume_command(command_arr[i]);
+                } else if(strcmp(txt, "ping") == 0){
+                    ping_command(command_arr[i]);
+                }
+
+                dup2(saved_stdout, STDOUT_FILENO);
+                close(saved_stdout);
+
                 i++;
                 continue;
             }
@@ -381,6 +423,8 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 }
                 rt = rt->next;
             }
+            
+            strip_redirections(command);
 
             if(command != NULL && command->type == WORD && strcmp(command->text , "reveal") == 0){
                 if(reveal(home_dir , prev_dir , curr_dir , command) != 0){

@@ -225,6 +225,7 @@ int hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
     if(t == NULL){
         getcwd(prev_dir , 4096);
         if (chdir(home_dir) == 0) {
+            strcpy(curr_dir, home_dir);
             if (getcwd(abs_path, sizeof(abs_path))) {
                 update_frecency(home_dir, abs_path);
             }
@@ -244,7 +245,7 @@ int hop(char *home_dir , char *prev_dir, char *curr_dir, Token *head){
 
     if(t == NULL) return 0;
 
-    if(t->text[0] == '-' && strlen(prev_dir) == 0){
+    if(strcmp(t->text , "-") == 0 && strlen(prev_dir) == 0){
         getcwd(prev_dir , 4096);
         t = t->next;
     }
