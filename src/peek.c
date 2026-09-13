@@ -258,16 +258,21 @@ int peek(Token *head , char *home_dir){
             continue;
         }
         if(t->type == WORD){
-            if(t->text[0] == '-' && strlen(t->text) > 1 && file_count == 0){
-                for(int i = 1 ; i < (int)strlen(t->text) ; i++){
-                    if(t->text[i] == 'n'){
-                        is_line = 1;
-                    }else if(t->text[i] == 'r'){
-                        is_reverse = 1;
-                    }else{
-                        printf("peek: invalid syntax\n");
-                        return -1;
+            if(t->text[0] == '-' && strlen(t->text) > 1){
+                if(file_count == 0){
+                    for(int i = 1 ; i < (int)strlen(t->text) ; i++){
+                        if(t->text[i] == 'n'){
+                            is_line = 1;
+                        }else if(t->text[i] == 'r'){
+                            is_reverse = 1;
+                        }else{
+                            printf("peek: invalid syntax\n");
+                            return -1;
+                        }
                     }
+                }else{
+                    printf("peek: invalid syntax\n");
+                    return -1;
                 }
             }else{
                 file_count++;

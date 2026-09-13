@@ -119,9 +119,9 @@ void trace_loop(pid_t pid) {
     qsort(stats, stats_count, sizeof(SyscallStat), compare_stats);
 
     // Using exact header format from spec (syscall calls time)
-    printf("syscall      calls     time\n");
+    fprintf(stderr, "syscall      calls     time\n");
     for (int i = 0; i < stats_count; i++) {
-        printf("%-12s %-8d %.3fs\n", syscall_name(stats[i].syscall_num), stats[i].count, stats[i].total_time);
+        fprintf(stderr, "%-12s %-8d %.3fs\n", syscall_name(stats[i].syscall_num), stats[i].count, stats[i].total_time);
     }
 }
 
@@ -173,7 +173,7 @@ void snoop_command(Token *cmd) {
 
         if (execvp(args[0], args) == -1) {
             printf("snoop: command not found\n");
-            exit(1);
+            _exit(1);
         }
     } else {
         // Parent

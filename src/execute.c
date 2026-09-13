@@ -1,4 +1,5 @@
 #include<stdio.h>
+
 #include<stdlib.h>
 #include<string.h>
 #include<unistd.h>
@@ -100,11 +101,16 @@ void print_completed_jobs(){
             
             // If every process in the pipeline is fully COMPLETED, remove the job!
             if (all_completed) {
+                sigset_t mask, prev_mask;
+                sigemptyset(&mask);
+                sigaddset(&mask, SIGCHLD);
+                sigprocmask(SIG_BLOCK, &mask, &prev_mask);
                 for(int k = i; k < tracked_job_count - 1; k++){
                     tracked_jobs[k] = tracked_jobs[k+1];
                 }
                 tracked_job_count--;
                 i--; // adjust index after shift
+                sigprocmask(SIG_SETMASK, &prev_mask, NULL);
             }
         }
     }
@@ -164,7 +170,7 @@ void execute_command(Token *head , char *full_path){
 
     if(execv(full_path , args) == -1){
         printf("cshell: command not found (%s)\n" , head->text);
-        exit(127);
+        _exit(127);
     }
 }
 
@@ -184,7 +190,7 @@ void process_command_path(Token *head){
             execute_command(head , head->text);
         }else{
             printf("cshell: command not found (%s)\n" , head->text);
-            exit(127);
+            _exit(127);
         }
 
         return ;
@@ -215,6 +221,10 @@ void process_command_path(Token *head){
     }
     // search in path
     char *path = getenv("PATH");
+    if (path == NULL) {
+        printf("cshell: command not found (%s)\n" , head->text);
+        _exit(127);
+    }
     char *path_copy = strdup(path);
 
     char *current_dir = strtok(path_copy , ":");
@@ -232,7 +242,7 @@ void process_command_path(Token *head){
 
     free(path_copy);
     printf("cshell: command not found (%s)\n" , head->text);
-    exit(127);
+    _exit(127);
 }
 
 int job_counter = 1;
@@ -312,6 +322,11 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
 
             if(i == 0){
                 setpgid(0 ,0);
+                if(!is_background){
+                    signal(SIGTTOU, SIG_IGN);
+                    tcsetpgrp(STDIN_FILENO , getpid());
+                    signal(SIGTTOU, SIG_DFL);
+                }
             }else{
                 setpgid(0 , pgid);
             }
@@ -392,7 +407,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                     failed = 1;
                 }
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "exit") == 0){
-                exit(0);
+                _exit(0);
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "resume") == 0){
                 resume_command(command);
             }else if(command != NULL && command->type == WORD && strcmp(command->text , "ping") == 0){
@@ -402,7 +417,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
                 
                 process_command_path(command);
             }
-            exit(failed ? -1 : 0);
+            _exit(failed ? -1 : 0);
         }else{
             if(i == 0) pgid = p;
             setpgid(p , pgid);
@@ -500,14 +515,7 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
             tcsetpgrp(STDIN_FILENO , pgid);
         }
     }
-    for(int j = 1 ; j < num_commands ; j++){
-        Token *t = command_arr[j];
-        while(t != NULL){
-            Token *temp = t;
-            t = t->next;
-            free(temp);
-        }
-    }
+
     int status;
     failed = 0;
     if(!is_background && child_process_count > 0){
@@ -555,6 +563,15 @@ int execute_pipe(Token *command_arr[] , int num_commands,char *home_dir , char *
 
 
 void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_dir){
+    /* Backup all tokens to restore links later */
+    Token *all_tokens[4096];
+    int all_tokens_count = 0;
+    Token *curr = command_list;
+    while(curr != NULL && all_tokens_count < 4096) {
+        all_tokens[all_tokens_count++] = curr;
+        curr = curr->next;
+    }
+
     job* job_arr[ARGS_MAX];
     for(int i = 0 ; i < ARGS_MAX ; i++){
         job_arr[i] = malloc(sizeof(job));
@@ -563,16 +580,11 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
     int i = 0,j = 0; // i for job array and j for individual command array
     Token *st = t;
 
-    /* ISSUE-17: Track orphaned operator tokens so we can free them after execution */
-    Token *orphaned_ops[ARGS_MAX * 2];
-    int orphaned_count = 0;
-
     while(t != NULL){
         if(t->type == OP_PIPE){
             job_arr[i]->command_list[j] = st;
             j++;
             prev->next = NULL;
-            orphaned_ops[orphaned_count++] = t; /* save operator node before moving past it */
             st = t->next;
         }else if(t->type == OP_SEMI){
             job_arr[i]->command_list[j] = st;
@@ -581,7 +593,6 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             j = 0;
             i++;
             prev->next = NULL;
-            orphaned_ops[orphaned_count++] = t;
             st = t->next;
         }else if(t->type == OP_AMP){
             job_arr[i]->command_list[j] = st;
@@ -590,7 +601,6 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
             j  = 0 ;
             i++;
             prev->next = NULL;
-            orphaned_ops[orphaned_count++] = t;
             st = t->next;
         }
         prev = t;
@@ -612,9 +622,7 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
 
     while(i < num_jobs){
         if(job_arr[i]->job_type == JOB_FOREGROUND){
-            if(execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir , curr_dir , 0 , 0) != 0){
-                break;
-            }
+            execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir , curr_dir , 0 , 0);
         }else{
             job_arr[i]->job_number = job_counter;
             execute_pipe(job_arr[i]->command_list , job_arr[i]->num_commands , home_dir , prev_dir,  curr_dir , 1 , job_counter);
@@ -625,8 +633,11 @@ void execute(Token *command_list , char *home_dir , char *prev_dir , char *curr_
     for(int k = 0 ; k < ARGS_MAX ; k++){
         free(job_arr[k]);
     }
-    /* ISSUE-17: Free the orphaned operator tokens now that execution is done */
-    for(int k = 0; k < orphaned_count; k++){
-        free(orphaned_ops[k]); /* operator tokens have text=NULL so no text to free */
+    /* Restore token list for free_tokens */
+    for(int k = 0; k < all_tokens_count - 1; k++) {
+        all_tokens[k]->next = all_tokens[k+1];
+    }
+    if(all_tokens_count > 0) {
+        all_tokens[all_tokens_count - 1]->next = NULL;
     }
 }

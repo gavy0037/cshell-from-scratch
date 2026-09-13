@@ -89,7 +89,6 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
         }
     }
 
-    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
     tcsetpgrp(STDIN_FILENO , getpgid(0));
     if(is_timer) alarm(0);
     if(!stopped){
@@ -108,6 +107,7 @@ void resume_foreground(JobTrack *curr_job , int is_timer , int timeout){
             tracked_job_count--;
         }
     }
+    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
 }
 
 int resume_command(Token *command){
